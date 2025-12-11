@@ -1,0 +1,190 @@
+---
+title: "README"
+format: gfm
+execute:
+  eval: false
+---
+
+Airbnb multi city Price Dynamics & Predictive Modeling
+
+!!Project Overview!!
+
+This project analyzes Airbnb listing data from four countries (Netherlands, Spain, Ireland, France) across four scraping periods between 2024–2025.
+
+My goal is to clean and merge the datasets into a long-format data structure as wel learned during the course. We are going to analyuze price completeness and change in prices. As well a deliverable of two predictive models: 
+- Linear Regression (log-price)
+- Random Forest Regressor (nonlinear model)
+After that we finaleze it by evaluate the model accuracy and interpret drivers of Airbnb pricing.
+
+Part 1:
+
+Data consist of 16 Airbnb CSV files:
+4 snapshots × 4 countries
+Each file contains around 80 feautres per listing
+Notable fields: price, accommodates, beds, bathrooms, latitude, longitude,
+host metrics, review scores, property type, etc.
+
+```{python}
+files = {
+
+    "netherlands": [
+        "~/Downloads/listings.csv",
+        "~/Downloads/listings-2.csv",
+        "~/Downloads/listings-3.csv",
+        "~/Downloads/listings-4.csv"
+    ],
+    "spain": [
+        "~/Downloads/listings-5.csv",
+        "~/Downloads/listings-6.csv",
+        "~/Downloads/listings-7.csv",
+        "~/Downloads/listings-8.csv"
+    ],
+    "ireland": [
+        "~/Downloads/listings-9.csv",
+        "~/Downloads/listings-10.csv",
+        "~/Downloads/listings-11.csv",
+        "~/Downloads/listings-12.csv"
+    ],
+    "france": [
+        "~/Downloads/listings-13.csv",
+        "~/Downloads/listings-14.csv",
+        "~/Downloads/listings-15.csv",
+        "~/Downloads/listings-16.csv"
+    ]
+}
+```
+
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import ConfusionMatrixDisplay, roc_curve, auc
+from sklearn.model_selection import train_test_split
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import export_graphviz
+from sklearn import tree
+```
+
+Part 2:
+the data scraping is from: 
+2025-09-11
+2025-06-09
+2025-03-02
+2024-12-07
+
+paert 3a: time to clean + combine the cities
+
+
+```{python}
+def load_city(city_name, file_list, snapshot_list):
+    frames = []
+    for file_path, snap in zip(file_list, snapshot_list):
+        df = pd.read_csv(file_path)
+        df["snapshot"] = snap
+        df["city"] = city_name
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
+
+all_cities = []
+
+
+```
+
+
+part 3b: price cleaing!
+
+```{python}
+airbnb["price"] = (
+    airbnb["price"]
+    .astype(str)
+    .str.replace("$","",regex=False)
+    .str.replace(",","",regex=False)
+    .str.strip()
+    .replace("", None)
+    .astype(float)
+)
+```
+
+part 3c: cleaning of Host Response & Acceptance Rate Cleaning
+
+```{python}
+airbnb["host_response_rate"] = (
+    airbnb["host_response_rate"]
+    .astype(str)
+    .str.replace("%","",regex=False)
+    .str.replace("nan","",regex=False)
+    .str.strip()
+    .replace(["","N/A"], None)
+    .astype(float)
+)
+```
+
+part 4: 
+Working with the data i found out that there was a lot of data missing of pricing of the airbnb. where i foudn out that france had new regulations where they are not aloud to push that price data anymore. I required listings to have ≥ 2 price observations to compute price changes.
+
+```{python}
+
+price_counts = airbnb.groupby(["city","id"])["price"].apply(lambda x: x.notna().sum())
+valid_ids = price_counts[price_counts >= 2].index
+
+airbnb_2plus = airbnb[airbnb.set_index(["city","id"]).index.isin(valid_ids)]
+airbnb_2plus = airbnb_2plus.sort_values(["city","id","snapshot"])
+airbnb_2plus["price_prev"] = airbnb_2plus.groupby(["city","id"])["price"].shift(1)
+airbnb_2plus["price_change"] = airbnb_2plus["price"] - airbnb_2plus["price_prev"]
+airbnb_2plus["price_up"] = (airbnb_2plus["price_change"] > 0).astype(int)
+```
+
+part 5:
+Predictive modeling on Amsterdam.train models only on Netherlands listings from 2025-09-11
+
+
+```{python}
+nl = airbnb[airbnb["city"] == "netherlands"].copy()
+nl_latest = nl[nl["snapshot"] == "2025-09-11"].copy()
+
+nl_latest["host_is_superhost"] = nl_latest["host_is_superhost"].map({"t":1,"f":0})
+nl_latest["log_price"] = np.log(nl_latest["price"])
+nl_encoded = pd.get_dummies(nl_latest, columns=["property_type"], drop_first=True)
+
+```
+
+part 6: Model 1: Linear Regression (log-price)
+
+```{python}
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+
+model = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
+    ("lr", LinearRegression())
+])
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+model.fit(X_train, y_train)
+
+```
+Results
+
+RMSE ≈ $120 Linear model captures general trends, but struggles with nonlinearities liek location.
+
+part 7: Model 2: Random Forest Regression
+
+```{python}
+from sklearn.ensemble import RandomForestRegressor
+
+rf = RandomForestRegressor(
+    n_estimators=500,
+    random_state=42,
+    n_jobs=-1
+)
+
+rf.fit(X_train, y_train)
+preds = rf.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, preds))
+
+```
+Results
+RMSE ≈ 98 which much lower than linear regression. Stronger performance due to ability to capture nonlinear location effects.
