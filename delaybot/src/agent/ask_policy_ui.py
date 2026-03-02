@@ -56,7 +56,7 @@ if question.strip():
             options=disruption_options,
             index=default_disruption_index,
             format_func=format_disruption,
-            help="Examples: weather, mechanical, crew, air traffic control.",
+            help="Examples: weather, mechanical, crew, air traffic control, security/geopolitical.",
         )
 
     if base.get("missing_fields"):
@@ -84,7 +84,7 @@ if question.strip():
                 st.info(" | ".join(chips))
 
             st.subheader("Answer")
-            st.write(result.get("answer", "No answer available."))
+            st.markdown(result.get("answer", "No answer available."))
 
             st.subheader("Contact the airline")
             st.write(result.get("contact_message", ""))

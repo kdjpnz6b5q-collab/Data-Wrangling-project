@@ -9,16 +9,45 @@ IN_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks.csv"
 OUT_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks_tagged.csv"
 
 TAG_RULES = {
-    "weather": ["weather", "storm", "snow", "hurricane"],
-    "air_traffic_control": ["air traffic control", "atc"],
+    "weather": ["weather", "storm", "snow", "hurricane", "thunderstorm", "lightning", "ice", "fog"],
+    "air_traffic_control": [
+        "air traffic control",
+        "atc",
+        "ground stop",
+        "flow control",
+        "airspace congestion",
+    ],
     "hotel": ["hotel", "overnight", "accommodation", "lodging"],
     "meal": ["meal", "voucher", "food"],
     "refund": ["refund", "original form of payment", "credit card"],
+    "compensation": ["compensation", "cash payment", "cash compensation", "claim"],
+    "reimbursement": ["reimburse", "reimbursement", "reasonable costs"],
     "rebooking": ["rebook", "next available flight", "re-accommodate"],
     "controllable": ["within the airline", "controllable", "caused by the airline", "within our control"],
     "uncontrollable": ["uncontrollable", "outside our control", "acts of god"],
-    "mechanical": ["mechanical", "maintenance", "aircraft", "defect"],
-    "crew": ["crew", "staffing", "pilot", "flight attendant"],
+    "mechanical": [
+        "mechanical",
+        "maintenance",
+        "aircraft",
+        "defect",
+        "technical issue",
+        "broken",
+        "engine issue",
+    ],
+    "crew": ["crew", "staffing", "pilot", "flight attendant", "crew rest", "crew legal"],
+    "security_geopolitical": [
+        "war",
+        "conflict",
+        "geopolitical",
+        "security threat",
+        "terror",
+        "airspace closure",
+        "no-fly zone",
+        "military",
+        "civil unrest",
+    ],
+    "airport_operations": ["airport closure", "runway closure", "airport strike", "terminal closure"],
+    "denied_boarding": ["denied boarding", "involuntary denied boarding", "overbook", "bumped"],
 }
 
 
