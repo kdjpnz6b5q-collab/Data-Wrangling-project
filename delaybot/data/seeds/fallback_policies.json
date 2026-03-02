@@ -1,20 +1,135 @@
 [
   {
     "doc_id": "dot_refunds",
+    "airline": "dot",
     "title": "DOT Automatic Refund Rule",
     "url": "https://www.transportation.gov/briefing-room/what-airline-passengers-need-know-about-dots-automatic-refund-rule",
-    "text": "The Department of Transportation requires automatic refunds for significant delays or cancellations when passengers choose not to travel. Airlines and ticket agents must return payment to the original form of payment. Credit-card refunds must be issued within seven business days and other payment refunds within twenty calendar days."
+    "text": "The U.S. Department of Transportation requires automatic refunds for qualifying significant delays and cancellations when passengers choose not to travel. Refunds must be returned to the original form of payment. Credit-card refunds must be issued within seven business days, and other forms of payment within twenty calendar days."
   },
   {
-    "doc_id": "aa_customer_service_plan",
+    "doc_id": "american_customer_service_plan",
+    "airline": "american",
     "title": "American Airlines Customer Service Plan",
     "url": "https://www.aa.com/i18n/customer-service/support/customer-service-plan.jsp",
-    "text": "American Airlines distinguishes controllable and uncontrollable disruptions. For controllable events caused by the airline, American may provide approved hotel vouchers, ground transportation vouchers, and meal vouchers for long delays. For uncontrollable events such as weather or air traffic control, American will generally rebook customers on the next available flight, and customers are responsible for their own hotel, meals, and incidental expenses."
+    "text": "American Airlines distinguishes controllable and uncontrollable disruptions. For controllable disruptions caused by the airline, the policy may provide hotel and meal vouchers when thresholds are met, including overnight disruptions. For uncontrollable disruptions such as weather or air traffic control, American generally rebooks customers but customers are responsible for hotel, meals, and incidental expenses."
   },
   {
     "doc_id": "delta_customer_commitment",
+    "airline": "delta",
     "title": "Delta Customer Commitment",
     "url": "https://www.delta.com/us/en/legal/customer-commitment",
-    "text": "Delta states that for delays or cancellations within Delta's control, overnight customers away from home may receive hotel accommodations and transportation, and delays over three hours may qualify for meal vouchers. Benefits do not generally apply when disruptions are outside Delta control, including weather events."
+    "text": "Delta customer commitments describe support for delays and cancellations, with stronger support when disruptions are within Delta control. Overnight controllable disruptions may include hotel and transportation support, while weather and other events outside Delta control generally have more limited accommodations."
+  },
+  {
+    "doc_id": "united_customer_commitment",
+    "airline": "united",
+    "title": "United Customer Commitment",
+    "url": "https://www.united.com/en/us/fly/customer-commitment.html",
+    "text": "United outlines delay and cancellation handling, rebooking practices, and customer communications. Benefits such as meals or hotel accommodations are generally more likely for controllable disruptions than for weather or air traffic control disruptions."
+  },
+  {
+    "doc_id": "southwest_customer_service_commitment",
+    "airline": "southwest",
+    "title": "Southwest Customer Service Commitment",
+    "url": "https://www.southwest.com/about-southwest/customer-service-commitment/",
+    "text": "Southwest publishes service commitments for delays, cancellations, and notifications. Rebooking is commonly provided, while compensation and amenities can depend on whether a disruption is within carrier control."
+  },
+  {
+    "doc_id": "jetblue_customer_service_plan",
+    "airline": "jetblue",
+    "title": "JetBlue Customer Service Plan",
+    "url": "https://www.jetblue.com/customer-assurance/customer-service-plan",
+    "text": "JetBlue customer service commitments cover delays, cancellations, and customer notifications. Hotel and meal assistance can depend on disruption cause, duration, and whether the issue is controllable by the airline."
+  },
+  {
+    "doc_id": "alaska_customer_commitment",
+    "airline": "alaska",
+    "title": "Alaska Customer Commitment",
+    "url": "https://www.alaskaair.com/content/about-us/customer-commitment/customer-commitment-overview",
+    "text": "Alaska Airlines describes assistance obligations for delays and cancellations and differentiates controllable and uncontrollable causes. Support such as meals or lodging is generally more likely in controllable scenarios."
+  },
+  {
+    "doc_id": "frontier_customer_service_plan",
+    "airline": "frontier",
+    "title": "Frontier Customer Service Plan",
+    "url": "https://www.flyfrontier.com/legal/customer-service-plan",
+    "text": "Frontier customer service terms explain rebooking and customer assistance during delays and cancellations. Coverage for meals and hotels varies by disruption cause and specific policy conditions."
+  },
+  {
+    "doc_id": "spirit_customer_service_plan",
+    "airline": "spirit",
+    "title": "Spirit Customer Service Plan",
+    "url": "https://customersupport.spirit.com/en-us/category/article/KA-01182",
+    "text": "Spirit policy materials and contract terms describe delay and cancellation handling. Outcomes can depend on whether the event is within the airline control, with rebooking commonly prioritized in uncontrollable events."
+  },
+  {
+    "doc_id": "hawaiian_customer_service_plan",
+    "airline": "hawaiian",
+    "title": "Hawaiian Airlines Customer Service Plan",
+    "url": "https://www2.hawaiianairlines.com/legal/customer-service-plan",
+    "text": "Hawaiian Airlines policy materials cover delay and cancellation commitments, communications, and rebooking practices. Assistance such as meals and hotels can depend on disruption cause and travel circumstances."
+  },
+  {
+    "doc_id": "allegiant_customer_service_plan",
+    "airline": "allegiant",
+    "title": "Allegiant Customer Service Plan",
+    "url": "https://www.allegiantair.com/customer-service-plan",
+    "text": "Allegiant customer service commitments outline treatment for delays and cancellations, including communication and re-accommodation expectations. Support for additional accommodations depends on circumstances and policy terms."
+  },
+  {
+    "doc_id": "avelo_contract_of_carriage",
+    "airline": "avelo",
+    "title": "Avelo Contract of Carriage",
+    "url": "https://www.aveloair.com/contract-of-carriage",
+    "text": "Avelo contract terms define passenger and carrier rights during delays, cancellations, schedule changes, and service interruptions. Remedies and accommodations depend on disruption cause and contract conditions."
+  },
+  {
+    "doc_id": "breeze_customer_service_plan",
+    "airline": "breeze",
+    "title": "Breeze Customer Service Plan",
+    "url": "https://www.flybreeze.com/support/customer-service-plan",
+    "text": "Breeze customer service plan describes commitments for delays, cancellations, notifications, and rebooking support. Additional accommodations are generally tied to applicable policy conditions and disruption type."
+  },
+  {
+    "doc_id": "sun_country_customer_service_plan",
+    "airline": "sun_country",
+    "title": "Sun Country Customer Service Plan",
+    "url": "https://www.suncountry.com/customer-service-plan",
+    "text": "Sun Country customer service plan addresses delay and cancellation handling, customer communication, and rerouting support. Availability of meals or hotel support can depend on cause and delay length."
+  },
+  {
+    "doc_id": "lufthansa_passenger_rights",
+    "airline": "lufthansa",
+    "title": "Lufthansa Passenger Rights",
+    "url": "https://www.lufthansa.com/us/en/passenger-rights",
+    "text": "Lufthansa provides passenger-rights guidance for delays, cancellations, denied boarding, and compensation frameworks, including EU and UK passenger-rights standards where applicable."
+  },
+  {
+    "doc_id": "ryanair_customer_service_charter",
+    "airline": "ryanair",
+    "title": "Ryanair Customer Service Charter",
+    "url": "https://www.ryanair.com/gb/en/useful-info/help-centre/terms-and-conditions/customer-service-charter",
+    "text": "Ryanair customer service charter describes service standards and obligations around delays, cancellations, customer support, and EU passenger-rights processes."
+  },
+  {
+    "doc_id": "easyjet_delays_and_cancellations",
+    "airline": "easyjet",
+    "title": "easyJet Delays and Cancellations Policy",
+    "url": "https://www.easyjet.com/en/help/boarding-and-flying/delays-and-cancellations",
+    "text": "easyJet delay and cancellation guidance explains rebooking, refunds, and compensation pathways, with eligibility depending on disruption circumstances and passenger-rights rules."
+  },
+  {
+    "doc_id": "air_france_customer_commitments",
+    "airline": "air_france",
+    "title": "Air France Customer Commitments",
+    "url": "https://wwws.airfrance.us/information/legal/edito-cgvu",
+    "text": "Air France customer commitments and legal terms address delay and cancellation handling, communications, rebooking, and compensation rights under applicable frameworks."
+  },
+  {
+    "doc_id": "british_airways_customer_commitment",
+    "airline": "british_airways",
+    "title": "British Airways Customer Commitment",
+    "url": "https://www.britishairways.com/en-us/information/help-and-contacts/customer-commitment",
+    "text": "British Airways customer commitment explains service standards, communication expectations, and disruption handling for delays and cancellations, including compensation-related guidance."
   }
 ]

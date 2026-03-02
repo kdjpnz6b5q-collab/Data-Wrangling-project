@@ -9,12 +9,16 @@ IN_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks.csv"
 OUT_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks_tagged.csv"
 
 TAG_RULES = {
-    "weather": ["weather", "uncontrollable", "acts of god", "air traffic control"],
-    "hotel": ["hotel", "overnight", "accommodation"],
+    "weather": ["weather", "storm", "snow", "hurricane"],
+    "air_traffic_control": ["air traffic control", "atc"],
+    "hotel": ["hotel", "overnight", "accommodation", "lodging"],
     "meal": ["meal", "voucher", "food"],
-    "refund": ["refund", "credit card", "original form of payment"],
-    "rebooking": ["rebook", "next available flight"],
-    "controllable": ["within the airline's control", "controllable", "caused by the airline"],
+    "refund": ["refund", "original form of payment", "credit card"],
+    "rebooking": ["rebook", "next available flight", "re-accommodate"],
+    "controllable": ["within the airline", "controllable", "caused by the airline", "within our control"],
+    "uncontrollable": ["uncontrollable", "outside our control", "acts of god"],
+    "mechanical": ["mechanical", "maintenance", "aircraft", "defect"],
+    "crew": ["crew", "staffing", "pilot", "flight attendant"],
 }
 
 
@@ -32,13 +36,14 @@ def main() -> int:
     with IN_CSV.open("r", newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
+    OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
+
     if not rows:
         print("No chunks to process; writing empty tagged file.")
-        OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
         with OUT_CSV.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(
                 f,
-                fieldnames=["chunk_id", "doc_id", "title", "url", "chunk_text", "tags"],
+                fieldnames=["chunk_id", "doc_id", "airline", "title", "url", "chunk_text", "tags"],
             )
             writer.writeheader()
         return 0
@@ -49,11 +54,10 @@ def main() -> int:
         tagged["tags"] = infer_tags(row.get("chunk_text", ""))
         tagged_rows.append(tagged)
 
-    OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     with OUT_CSV.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["chunk_id", "doc_id", "title", "url", "chunk_text", "tags"],
+            fieldnames=["chunk_id", "doc_id", "airline", "title", "url", "chunk_text", "tags"],
         )
         writer.writeheader()
         writer.writerows(tagged_rows)

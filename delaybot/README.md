@@ -1,6 +1,6 @@
 # DelayBot
 
-DelayBot is a small local QA pipeline for airline delay/cancellation policy questions.
+DelayBot is a local QA pipeline for airline delay and cancellation policy questions.
 
 ## Quick start
 
@@ -11,20 +11,94 @@ make all
 make ask Q="If my American Airlines flight is canceled because of weather, do they owe me a hotel?"
 ```
 
-## What it does
+You can also use `QUESTION` instead of `Q`:
+
+```bash
+make ask QUESTION="my plane got delayed because of weather"
+```
+
+For alliance-based alternative flights:
+
+```bash
+make recommend FLIGHT="AA123" ORIGIN="JFK" DEST="LHR" DEPART="2026-03-10T14:30"
+```
+
+## Click-box UI (guided follow-up)
+
+If the question is missing details (like airline or disruption type), use the UI boxes:
+
+```bash
+make ui
+```
+
+Then open the local Streamlit URL (usually `http://localhost:8501`).
+
+The UI now includes:
+- Policy Q&A with missing-field dropdowns (airline/disruption type)
+- Alternative Flight Finder with:
+  - flight number
+  - depart airport code (3 letters)
+  - destination airport code (3 letters)
+  - departure time
+  - alliance-aware recommendations + Google Flights links + airline contact links
+
+## Scraping architecture
+
+Each airline has its own scraping script, named after the airline:
+
+- `src/scrape/scrape_dot.py`
+- `src/scrape/scrape_american.py`
+- `src/scrape/scrape_delta.py`
+- `src/scrape/scrape_united.py`
+- `src/scrape/scrape_southwest.py`
+- `src/scrape/scrape_jetblue.py`
+- `src/scrape/scrape_alaska.py`
+- `src/scrape/scrape_frontier.py`
+- `src/scrape/scrape_spirit.py`
+- `src/scrape/scrape_hawaiian.py`
+- `src/scrape/scrape_allegiant.py`
+- `src/scrape/scrape_avelo.py`
+- `src/scrape/scrape_breeze.py`
+- `src/scrape/scrape_sun_country.py`
+- `src/scrape/scrape_lufthansa.py`
+- `src/scrape/scrape_ryanair.py`
+- `src/scrape/scrape_easyjet.py`
+- `src/scrape/scrape_air_france.py`
+- `src/scrape/scrape_british_airways.py`
+
+`src/scrape/scrape_pages.py` runs all of them in sequence.
+
+Current coverage:
+- U.S.-based airlines: American, Delta, United, Southwest, JetBlue, Alaska, Frontier, Spirit, Hawaiian, Allegiant, Avelo, Breeze, Sun Country
+- Europe (big 5 set): Lufthansa, Ryanair, easyJet, Air France, British Airways
+
+## Pipeline
 
 1. `src/scrape/scrape_pages.py`
-   - Tries direct page fetch.
-   - Falls back to `r.jina.ai` for blocked pages.
-   - Falls back to local seed policy text if network fetch fails.
+   - Runs all per-airline scripts.
+   - Each script uses direct fetch, then `r.jina.ai` fallback, then local seed fallback.
 2. `src/process/extract_text.py`
    - Extracts text from raw HTML.
 3. `src/process/chunk_policy_text.py`
-   - Chunks long policy text into retrieval-sized segments.
+   - Chunks policy text for retrieval.
 4. `src/analysis/tag_policy_chunks.py`
-   - Applies keyword-based policy tags.
+   - Adds tags (weather, hotel, meal, controllable/uncontrollable, etc.).
 5. `src/agent/ask_policy.py`
-   - Retrieves relevant chunks and returns an evidence-backed answer.
+   - Answers in CLI.
+   - Prompts for missing airline/disruption info if needed.
+   - Adds a post-answer contact instruction and airline contact page link.
+6. `src/agent/ask_policy_ui.py`
+   - Streamlit UI with clickable dropdown boxes for missing fields.
+   - Shows the same contact guidance block and clickable contact link.
+7. `src/agent/flight_recommender.py`
+   - Alliance-aware alternative flight recommendations (Phase 1, no live fare feed).
+8. `src/agent/recommend_alternatives.py`
+   - CLI wrapper for alternative-flight recommendations.
+
+## Live integration note
+
+DelayBot does not scrape Google Flights directly. It generates Google Flights search links and alliance-based options.
+Phase 2 can add live schedules/fares using a provider API (for example Amadeus).
 
 ## Data outputs
 

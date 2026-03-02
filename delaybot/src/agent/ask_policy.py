@@ -2,185 +2,123 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import re
-from pathlib import Path
+import sys
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TAGGED_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks_tagged.csv"
-FALLBACK_CHUNKS = PROJECT_ROOT / "data" / "processed" / "policy_chunks.csv"
-
-STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "at",
-    "be",
-    "because",
-    "by",
-    "do",
-    "does",
-    "for",
-    "from",
-    "how",
-    "i",
-    "if",
-    "in",
-    "is",
-    "it",
-    "me",
-    "my",
-    "of",
-    "on",
-    "or",
-    "so",
-    "that",
-    "the",
-    "they",
-    "to",
-    "we",
-    "what",
-    "when",
-    "where",
-    "who",
-    "why",
-    "with",
-    "you",
-}
+from policy_engine import (
+    AIRLINE_LABELS,
+    DISRUPTION_LABELS,
+    query_policy,
+)
 
 
-EXTRA_WEIGHTS = {
-    "weather": 2.5,
-    "hotel": 2.5,
-    "meal": 1.8,
-    "refund": 2.2,
-    "rebook": 1.8,
-    "rebooking": 1.8,
-    "canceled": 2.0,
-    "cancelled": 2.0,
-    "american": 2.8,
-    "delta": 2.0,
-}
+def prompt_choice(field_name: str, options: list[str], labels: dict[str, str]) -> str | None:
+    print(f"\nSelect {field_name}:")
+    for i, option in enumerate(options, start=1):
+        print(f"  {i}. {labels.get(option, option)}")
+
+    while True:
+        raw = input(f"Enter number (1-{len(options)}), or press Enter to skip: ").strip()
+        if raw == "":
+            return None
+        if raw.isdigit():
+            idx = int(raw)
+            if 1 <= idx <= len(options):
+                return options[idx - 1]
+        print("Invalid choice. Try again.")
 
 
-def tokenize(text: str) -> set[str]:
-    words = re.findall(r"[a-zA-Z0-9']+", text.lower())
-    return {w for w in words if len(w) > 1 and w not in STOPWORDS}
+def print_result(result: dict) -> None:
+    print(f"Question: {result['question']}\n")
 
+    airline = result.get("airline")
+    disruption = result.get("disruption")
 
-def load_rows() -> list[dict[str, str]]:
-    source = TAGGED_CSV if TAGGED_CSV.exists() else FALLBACK_CHUNKS
-    if not source.exists():
-        return []
-    with source.open("r", newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+    if airline:
+        print(f"Airline: {AIRLINE_LABELS.get(airline, airline)}")
+    if disruption:
+        print(f"Disruption type: {DISRUPTION_LABELS.get(disruption, disruption)}")
 
+    if result.get("follow_up_prompt"):
+        print(f"\nFollow-up needed:\n{result['follow_up_prompt']}")
 
-def score_row(query_tokens: set[str], row: dict[str, str]) -> float:
-    text = row.get("chunk_text", "")
-    tokens = tokenize(text)
-    overlap = query_tokens.intersection(tokens)
-    score = float(len(overlap))
+    print("\nAnswer:")
+    print(result.get("answer", "No answer available."))
 
-    text_l = text.lower()
-    for term, weight in EXTRA_WEIGHTS.items():
-        if term in query_tokens and term in text_l:
-            score += weight
+    contact_message = result.get("contact_message", "")
+    contact_url = result.get("contact_url", "")
+    if contact_message:
+        print("\nNext step:")
+        print(contact_message)
+        if contact_url:
+            print(f"Contact page: {contact_url}")
 
-    # Bias for matching airline name in title.
-    title_l = row.get("title", "").lower()
-    if "american" in query_tokens and "american" in title_l:
-        score += 2.0
-    if "delta" in query_tokens and "delta" in title_l:
-        score += 2.0
+    evidence = result.get("evidence", [])
+    if evidence:
+        print("\nEvidence:")
+        shown = set()
+        for row in evidence:
+            key = (row.get("title", ""), row.get("chunk_text", ""))
+            if key in shown:
+                continue
+            shown.add(key)
 
-    return score
+            snippet = row.get("chunk_text", "").strip()
+            snippet = re.sub(r"\s+", " ", snippet)
+            if len(snippet) > 260:
+                snippet = snippet[:260].rstrip() + "..."
 
-
-def answer_for_query(question: str, top_rows: list[dict[str, str]]) -> str:
-    q = question.lower()
-    joined = " ".join(r.get("chunk_text", "") for r in top_rows).lower()
-
-    if "american" in q and "weather" in q and ("hotel" in q or "accommodation" in q):
-        return (
-            "Short answer: usually no. If an American Airlines cancellation is caused by weather "
-            "(an uncontrollable event), hotel and meal costs are typically your responsibility; "
-            "American usually rebooks you on the next available flight."
-        )
-
-    if "delta" in q and "weather" in q and ("hotel" in q or "accommodation" in q):
-        return (
-            "For Delta, hotel/meal support is generally tied to controllable disruptions. "
-            "If weather caused the disruption, those benefits usually do not apply."
-        )
-
-    if "refund" in q and ("cancel" in q or "delay" in q):
-        return (
-            "DOT baseline: for qualifying significant delays/cancellations, refunds should be automatic "
-            "to the original payment method when you choose not to travel."
-        )
-
-    if "responsible for their own hotel" in joined or "customers are responsible for their own hotel" in joined:
-        return (
-            "Based on the retrieved policy text, weather-related disruptions are treated as uncontrollable, "
-            "and hotel/meal costs are usually not covered by the airline."
-        )
-
-    if top_rows:
-        return "Best answer from available policy text is shown below with supporting snippets."
-
-    return "No policy data available. Run: make all"
+            title = row.get("title", "Unknown")
+            url = row.get("url", "")
+            print(f"- {title}")
+            if url:
+                print(f"  {url}")
+            print(f"  {snippet}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ask DelayBot a policy question")
     parser.add_argument("question", nargs="+", help="Question to ask")
+    parser.add_argument("--airline", default="", help="Optional airline override")
+    parser.add_argument("--disruption", default="", help="Optional disruption type override")
+    parser.add_argument(
+        "--no-interactive",
+        action="store_true",
+        help="Do not prompt for missing fields; only print follow-up guidance.",
+    )
     args = parser.parse_args()
-    question = " ".join(args.question).strip()
 
-    rows = load_rows()
-    if not rows:
-        print("No policy data available. Run: make all")
+    question = " ".join(args.question).strip()
+    result = query_policy(question, airline_override=args.airline, disruption_override=args.disruption)
+
+    if not result.get("ok"):
+        print(result.get("error", "Unknown error"))
         return 1
 
-    query_tokens = tokenize(question)
-    scored = []
-    for row in rows:
-        s = score_row(query_tokens, row)
-        if s > 0:
-            scored.append((s, row))
+    missing = result.get("missing_fields", [])
+    if missing and not args.no_interactive and sys.stdin.isatty():
+        airline_override = args.airline or None
+        disruption_override = args.disruption or None
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top = [r for _, r in scored[:5]]
+        if "airline" in missing and not airline_override:
+            airline_options = result.get("airline_options", [])
+            pick = prompt_choice("airline", airline_options, AIRLINE_LABELS)
+            if pick:
+                airline_override = pick
 
-    if not top:
-        print("No strong matches found in the current policy data.")
-        return 0
+        if "disruption" in missing and not disruption_override:
+            disruption_options = result.get("disruption_options", [])
+            pick = prompt_choice("delay/disruption type", disruption_options, DISRUPTION_LABELS)
+            if pick:
+                disruption_override = pick
 
-    print(f"Question: {question}\n")
-    print("Answer:")
-    print(answer_for_query(question, top))
-    print("\nEvidence:")
+        result = query_policy(
+            question,
+            airline_override=airline_override,
+            disruption_override=disruption_override,
+        )
 
-    shown = set()
-    for row in top:
-        key = (row.get("title", ""), row.get("chunk_text", ""))
-        if key in shown:
-            continue
-        shown.add(key)
-        snippet = row.get("chunk_text", "").strip()
-        snippet = re.sub(r"\s+", " ", snippet)
-        if len(snippet) > 240:
-            snippet = snippet[:240].rstrip() + "..."
-        title = row.get("title", "Unknown")
-        url = row.get("url", "")
-        print(f"- {title}")
-        if url:
-            print(f"  {url}")
-        print(f"  {snippet}")
-
+    print_result(result)
     return 0
 
 
