@@ -195,16 +195,28 @@ def _amadeus_get_access_token(base_url: str, client_id: str, client_secret: str,
     import requests
 
     token_url = f"{base_url}/v1/security/oauth2/token"
-    resp = requests.post(
-        token_url,
-        data={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-        },
-        timeout=timeout,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.post(
+            token_url,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            timeout=timeout,
+        )
+    except requests.RequestException as exc:
+        raise RuntimeError(f"amadeus_token_request_error: {exc}") from exc
+
+    if resp.status_code >= 400:
+        detail = ""
+        try:
+            payload = resp.json()
+            detail = payload.get("error_description") or payload.get("error") or ""
+        except Exception:
+            detail = (resp.text or "").strip()[:220]
+        raise RuntimeError(f"amadeus_token_http_{resp.status_code}: {detail}")
+
     body = resp.json()
     token = body.get("access_token", "")
     if not token:
@@ -237,7 +249,7 @@ def _amadeus_fetch_live_offers(
     try:
         token = _amadeus_get_access_token(base_url, client_id, client_secret)
     except Exception as exc:
-        return [], "alliance_fallback", f"Amadeus auth failed: {type(exc).__name__}. Using alliance fallback."
+        return [], "alliance_fallback", f"Amadeus auth failed: {exc}. Using alliance fallback."
 
     airline_codes = [AIRLINE_TO_IATA[a] for a in candidate_airlines if AIRLINE_TO_IATA.get(a)]
     params = {
@@ -259,10 +271,17 @@ def _amadeus_fetch_live_offers(
             params=params,
             timeout=20,
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = ""
+            try:
+                payload = resp.json()
+                detail = payload.get("errors", [{}])[0].get("detail", "")
+            except Exception:
+                detail = (resp.text or "").strip()[:220]
+            raise RuntimeError(f"amadeus_search_http_{resp.status_code}: {detail}")
         payload = resp.json()
     except Exception as exc:
-        return [], "alliance_fallback", f"Amadeus shopping call failed: {type(exc).__name__}. Using alliance fallback."
+        return [], "alliance_fallback", f"Amadeus shopping call failed: {exc}. Using alliance fallback."
 
     offers = payload.get("data") or []
     if not offers:
