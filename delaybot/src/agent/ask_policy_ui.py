@@ -36,7 +36,84 @@ selected_event_type = ""
 delay_hours_override: float | None = None
 notice_hours_override: float | None = None
 
+if "policy_result" not in st.session_state:
+    st.session_state["policy_result"] = None
+if "show_email_draft" not in st.session_state:
+    st.session_state["show_email_draft"] = False
+
+
+def render_policy_result(result: dict) -> None:
+    airline = result.get("airline")
+    disruption = result.get("disruption")
+    event_type = result.get("event_type")
+
+    chips = []
+    if airline:
+        chips.append(f"Airline: {AIRLINE_LABELS.get(airline, airline)}")
+    if disruption:
+        chips.append(f"Type: {DISRUPTION_LABELS.get(disruption, disruption)}")
+    if event_type:
+        chips.append(f"Event: {EVENT_TYPE_LABELS.get(event_type, event_type)}")
+    if chips:
+        st.info(" | ".join(chips))
+
+    st.subheader("Answer")
+    st.markdown(result.get("answer", "No answer available."))
+
+    st.subheader("Contact the airline")
+    st.write(result.get("contact_message", ""))
+    contact_url = result.get("contact_url", "")
+    if contact_url:
+        st.markdown(f"Official contact page: [{contact_url}]({contact_url})")
+
+    expected_comp = result.get("expected_compensation")
+    comp_notes = result.get("compensation_notes", [])
+    if expected_comp or comp_notes:
+        st.subheader("Expected compensation (not guaranteed)")
+        if expected_comp:
+            st.write(expected_comp)
+        if comp_notes:
+            st.markdown("\n".join(f"- {line}" for line in comp_notes))
+
+    email_subject = result.get("refund_email_subject")
+    email_body = result.get("refund_email_body")
+    if email_subject and email_body:
+        if st.button("Generate draft email", key="generate_refund_email_btn"):
+            st.session_state["show_email_draft"] = True
+        if st.session_state.get("show_email_draft"):
+            st.subheader("Draft refund/compensation email")
+            st.write(f"Subject: {email_subject}")
+            st.code(email_body, language="text")
+
+    evidence = result.get("evidence", [])
+    if evidence:
+        st.subheader("Evidence")
+        shown = set()
+        for row in evidence:
+            key = (row.get("title", ""), row.get("chunk_text", ""))
+            if key in shown:
+                continue
+            shown.add(key)
+
+            snippet = row.get("chunk_text", "")
+            snippet = re.sub(r"\s+", " ", snippet).strip()
+            if len(snippet) > 420:
+                snippet = snippet[:420].rstrip() + "..."
+
+            title = row.get("title", "Unknown")
+            url = row.get("url", "")
+            with st.expander(title):
+                if url:
+                    st.markdown(f"Source: [{url}]({url})")
+                st.write(snippet)
+
+
 if question.strip():
+    stored = st.session_state.get("policy_result")
+    if isinstance(stored, dict) and stored.get("question") != question:
+        st.session_state["policy_result"] = None
+        st.session_state["show_email_draft"] = False
+
     base = query_policy(question, top_k=3)
 
     cols = st.columns(3)
@@ -128,67 +205,15 @@ if question.strip():
         if not result.get("ok"):
             st.error(result.get("error", "Unknown error."))
         else:
-            airline = result.get("airline")
-            disruption = result.get("disruption")
-            event_type = result.get("event_type")
+            st.session_state["policy_result"] = result
+            st.session_state["show_email_draft"] = False
 
-            chips = []
-            if airline:
-                chips.append(f"Airline: {AIRLINE_LABELS.get(airline, airline)}")
-            if disruption:
-                chips.append(f"Type: {DISRUPTION_LABELS.get(disruption, disruption)}")
-            if event_type:
-                chips.append(f"Event: {EVENT_TYPE_LABELS.get(event_type, event_type)}")
-            if chips:
-                st.info(" | ".join(chips))
-
-            st.subheader("Answer")
-            st.markdown(result.get("answer", "No answer available."))
-
-            st.subheader("Contact the airline")
-            st.write(result.get("contact_message", ""))
-            contact_url = result.get("contact_url", "")
-            if contact_url:
-                st.markdown(f"Official contact page: [{contact_url}]({contact_url})")
-
-            expected_comp = result.get("expected_compensation")
-            comp_notes = result.get("compensation_notes", [])
-            if expected_comp or comp_notes:
-                st.subheader("Expected compensation (not guaranteed)")
-                if expected_comp:
-                    st.write(expected_comp)
-                if comp_notes:
-                    st.markdown("\n".join(f"- {line}" for line in comp_notes))
-
-            email_subject = result.get("refund_email_subject")
-            email_body = result.get("refund_email_body")
-            if email_subject and email_body:
-                st.subheader("Draft refund/compensation email")
-                st.write(f"Subject: {email_subject}")
-                st.code(email_body, language="text")
-
-            evidence = result.get("evidence", [])
-            if evidence:
-                st.subheader("Evidence")
-                shown = set()
-                for row in evidence:
-                    key = (row.get("title", ""), row.get("chunk_text", ""))
-                    if key in shown:
-                        continue
-                    shown.add(key)
-
-                    snippet = row.get("chunk_text", "")
-                    snippet = re.sub(r"\s+", " ", snippet).strip()
-                    if len(snippet) > 420:
-                        snippet = snippet[:420].rstrip() + "..."
-
-                    title = row.get("title", "Unknown")
-                    url = row.get("url", "")
-                    with st.expander(title):
-                        if url:
-                            st.markdown(f"Source: [{url}]({url})")
-                        st.write(snippet)
+    final_result = st.session_state.get("policy_result")
+    if isinstance(final_result, dict) and final_result.get("ok"):
+        render_policy_result(final_result)
 else:
+    st.session_state["policy_result"] = None
+    st.session_state["show_email_draft"] = False
     st.write("Enter a question to start.")
 
 st.divider()
