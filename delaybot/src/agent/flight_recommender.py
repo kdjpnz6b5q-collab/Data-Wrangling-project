@@ -246,3 +246,12 @@ def recommend_alternative_flights(
         "live_data_note": live_integration_note(),
         "recommendations": recs,
     }
+
+
+if __name__ == "__main__":
+    print("This module defines helper functions.")
+    print("Run the CLI wrapper instead:")
+    print(
+        "  python src/agent/recommend_alternatives.py "
+        "--flight-number AA123 --origin JFK --destination LHR --departure-time 2026-03-10T14:30"
+    )
