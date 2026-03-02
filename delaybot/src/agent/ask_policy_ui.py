@@ -164,6 +164,11 @@ if alt_submit:
                 f"Primary contact page: [{alt_result['contact_url']}]({alt_result['contact_url']})"
             )
         st.caption(alt_result.get("live_data_note", ""))
+        data_source = alt_result.get("data_source", "")
+        if data_source == "amadeus_live":
+            st.success("Using live flight offers from Amadeus.")
+        else:
+            st.info("Using alliance fallback recommendations.")
 
         st.subheader("Recommended alternatives")
         for i, rec in enumerate(alt_result.get("recommendations", []), start=1):
@@ -172,6 +177,21 @@ if alt_submit:
                 if code:
                     st.write(f"Carrier code: {code}")
                 st.write(f"Why: {rec['reason']}")
+                if rec.get("live_offer"):
+                    cols = st.columns(3)
+                    with cols[0]:
+                        if rec.get("price"):
+                            st.write(f"Price: {rec['price']}")
+                        if rec.get("stops") is not None:
+                            st.write(f"Stops: {rec['stops']}")
+                    with cols[1]:
+                        if rec.get("departure_at"):
+                            st.write(f"Departure: {rec['departure_at']}")
+                        if rec.get("arrival_at"):
+                            st.write(f"Arrival: {rec['arrival_at']}")
+                    with cols[2]:
+                        if rec.get("duration"):
+                            st.write(f"Duration: {rec['duration']}")
                 if rec.get("contact_url"):
                     st.markdown(f"Contact: [{rec['contact_url']}]({rec['contact_url']})")
                 st.markdown(

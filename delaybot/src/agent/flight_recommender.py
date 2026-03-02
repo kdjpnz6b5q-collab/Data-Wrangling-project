@@ -120,18 +120,8 @@ def build_google_flights_url(origin: str, destination: str, departure_date: str,
     return f"https://www.google.com/travel/flights?q={quote_plus(query)}"
 
 
-def live_integration_note() -> str:
-    client_id = os.getenv("AMADEUS_CLIENT_ID", "")
-    client_secret = os.getenv("AMADEUS_CLIENT_SECRET", "")
-    if client_id and client_secret:
-        return (
-            "Live API credentials detected (Amadeus), but DelayBot is currently using alliance-based "
-            "recommendations only. Phase 2 can add live fare/schedule calls."
-        )
-    return (
-        "Live fare data is not enabled yet. This recommendation uses alliance logic and Google Flights links. "
-        "Phase 2 can integrate Amadeus or another flight API."
-    )
+def has_amadeus_credentials() -> bool:
+    return bool(os.getenv("AMADEUS_CLIENT_ID", "") and os.getenv("AMADEUS_CLIENT_SECRET", ""))
 
 
 def build_candidate_airlines(source_airline: str) -> list[str]:
@@ -167,6 +157,180 @@ def build_reason(source_airline: str, candidate: str) -> str:
         return f"Alliance partner ({ALLIANCE_LABELS[source_alliance]})."
 
     return "Fallback major carrier option for the route/date search."
+
+
+def _alliance_recommendations(
+    source_airline: str,
+    origin_code: str,
+    destination_code: str,
+    departure_date: str,
+    max_results: int,
+) -> list[dict[str, Any]]:
+    candidates = build_candidate_airlines(source_airline)
+    recs: list[dict[str, Any]] = []
+
+    for candidate in candidates[: max(1, max_results)]:
+        label = AIRLINE_LABELS.get(candidate, candidate)
+        recs.append(
+            {
+                "airline": candidate,
+                "airline_label": label,
+                "airline_code": AIRLINE_TO_IATA.get(candidate, ""),
+                "reason": build_reason(source_airline, candidate),
+                "contact_url": AIRLINE_CONTACT_URLS.get(candidate, ""),
+                "google_flights_url": build_google_flights_url(
+                    origin_code,
+                    destination_code,
+                    departure_date,
+                    label,
+                ),
+                "live_offer": False,
+            }
+        )
+
+    return recs
+
+
+def _amadeus_get_access_token(base_url: str, client_id: str, client_secret: str, timeout: int = 15) -> str:
+    import requests
+
+    token_url = f"{base_url}/v1/security/oauth2/token"
+    resp = requests.post(
+        token_url,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    token = body.get("access_token", "")
+    if not token:
+        raise RuntimeError("amadeus_token_missing")
+    return token
+
+
+def _amadeus_fetch_live_offers(
+    origin_code: str,
+    destination_code: str,
+    departure_date: str,
+    candidate_airlines: list[str],
+    max_results: int,
+) -> tuple[list[dict[str, Any]], str, str]:
+    """
+    Returns: (recommendations, data_source, note)
+    """
+    if not has_amadeus_credentials():
+        return [], "alliance_fallback", "Live fare data is not enabled yet (no Amadeus credentials found)."
+
+    client_id = os.getenv("AMADEUS_CLIENT_ID", "")
+    client_secret = os.getenv("AMADEUS_CLIENT_SECRET", "")
+    base_url = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com").rstrip("/")
+
+    try:
+        import requests
+    except Exception:
+        return [], "alliance_fallback", "Live fare data disabled because requests library is unavailable."
+
+    try:
+        token = _amadeus_get_access_token(base_url, client_id, client_secret)
+    except Exception as exc:
+        return [], "alliance_fallback", f"Amadeus auth failed: {type(exc).__name__}. Using alliance fallback."
+
+    airline_codes = [AIRLINE_TO_IATA[a] for a in candidate_airlines if AIRLINE_TO_IATA.get(a)]
+    params = {
+        "originLocationCode": origin_code,
+        "destinationLocationCode": destination_code,
+        "departureDate": departure_date,
+        "adults": "1",
+        "max": str(max(5, min(20, max_results * 3))),
+        "nonStop": "false",
+        "currencyCode": "USD",
+    }
+    if airline_codes:
+        params["includedAirlineCodes"] = ",".join(sorted(set(airline_codes)))
+
+    try:
+        resp = requests.get(
+            f"{base_url}/v2/shopping/flight-offers",
+            headers={"Authorization": f"Bearer {token}"},
+            params=params,
+            timeout=20,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception as exc:
+        return [], "alliance_fallback", f"Amadeus shopping call failed: {type(exc).__name__}. Using alliance fallback."
+
+    offers = payload.get("data") or []
+    if not offers:
+        return [], "alliance_fallback", "No live offers returned by Amadeus; using alliance fallback."
+
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+
+    for offer in offers:
+        validating = offer.get("validatingAirlineCodes") or []
+        primary_code = (validating[0] if validating else "").upper()
+        airline_key = IATA_TO_AIRLINE.get(primary_code)
+        airline_label = AIRLINE_LABELS.get(airline_key or "", primary_code or "Unknown carrier")
+
+        itineraries = offer.get("itineraries") or []
+        if not itineraries:
+            continue
+        first_it = itineraries[0]
+        segments = first_it.get("segments") or []
+        if not segments:
+            continue
+
+        dep_at = segments[0].get("departure", {}).get("at", "")
+        arr_at = segments[-1].get("arrival", {}).get("at", "")
+        stops = max(0, len(segments) - 1)
+        duration = first_it.get("duration", "")
+
+        price = offer.get("price", {})
+        total = price.get("grandTotal", "")
+        currency = price.get("currency", "")
+        price_text = f"{total} {currency}".strip()
+
+        key = (primary_code, dep_at, arr_at, price_text)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        label_for_query = airline_label if airline_label != "Unknown carrier" else primary_code
+
+        out.append(
+            {
+                "airline": airline_key or primary_code.lower() or "unknown",
+                "airline_label": airline_label,
+                "airline_code": primary_code,
+                "reason": "Live offer from Amadeus for your route/date.",
+                "contact_url": AIRLINE_CONTACT_URLS.get(airline_key or "", ""),
+                "google_flights_url": build_google_flights_url(
+                    origin_code,
+                    destination_code,
+                    departure_date,
+                    label_for_query,
+                ),
+                "live_offer": True,
+                "price": price_text,
+                "departure_at": dep_at,
+                "arrival_at": arr_at,
+                "stops": stops,
+                "duration": duration,
+            }
+        )
+
+        if len(out) >= max_results:
+            break
+
+    if not out:
+        return [], "alliance_fallback", "No parsable live offers returned; using alliance fallback."
+
+    return out, "amadeus_live", "Live offers fetched from Amadeus API."
 
 
 def recommend_alternative_flights(
@@ -208,24 +372,25 @@ def recommend_alternative_flights(
 
     departure_date = dep_dt.date().isoformat() if dep_dt else ""
 
-    candidates = build_candidate_airlines(source_airline)
-    recs = []
-    for candidate in candidates[: max(1, max_results)]:
-        label = AIRLINE_LABELS.get(candidate, candidate)
-        recs.append(
-            {
-                "airline": candidate,
-                "airline_label": label,
-                "airline_code": AIRLINE_TO_IATA.get(candidate, ""),
-                "reason": build_reason(source_airline, candidate),
-                "contact_url": AIRLINE_CONTACT_URLS.get(candidate, ""),
-                "google_flights_url": build_google_flights_url(
-                    origin_code,
-                    destination_code,
-                    departure_date,
-                    label,
-                ),
-            }
+    candidate_airlines = build_candidate_airlines(source_airline)
+
+    live_recs, data_source, live_note = _amadeus_fetch_live_offers(
+        origin_code=origin_code,
+        destination_code=destination_code,
+        departure_date=departure_date,
+        candidate_airlines=candidate_airlines,
+        max_results=max_results,
+    )
+
+    if live_recs:
+        recs = live_recs
+    else:
+        recs = _alliance_recommendations(
+            source_airline=source_airline,
+            origin_code=origin_code,
+            destination_code=destination_code,
+            departure_date=departure_date,
+            max_results=max_results,
         )
 
     source_contact_url = AIRLINE_CONTACT_URLS.get(source_airline, "")
@@ -243,7 +408,9 @@ def recommend_alternative_flights(
         "source_alliance_label": ALLIANCE_LABELS.get(source_alliance or "", "None"),
         "contact_message": f'Please reach out to your airline "{source_airline_label}" - Go Irisch.',
         "contact_url": source_contact_url,
-        "live_data_note": live_integration_note(),
+        "live_data_enabled": has_amadeus_credentials(),
+        "data_source": data_source,
+        "live_data_note": live_note,
         "recommendations": recs,
     }
 

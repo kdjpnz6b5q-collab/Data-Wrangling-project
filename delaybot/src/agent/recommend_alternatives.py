@@ -39,6 +39,7 @@ def main() -> int:
     print(f"Departure time: {result['departure_time']}")
     print(f"Detected airline: {result['source_airline_label']} ({result['source_iata_code']})")
     print(f"Alliance: {result['source_alliance_label']}")
+    print(f"Recommendation source: {result.get('data_source', 'unknown')}")
     print(f"\n{result['contact_message']}")
     if result.get("contact_url"):
         print(f"Primary contact page: {result['contact_url']}")
@@ -51,6 +52,17 @@ def main() -> int:
         code_text = f" ({code})" if code else ""
         print(f"{i}. {rec['airline_label']}{code_text}")
         print(f"   Why: {rec['reason']}")
+        if rec.get("live_offer"):
+            if rec.get("price"):
+                print(f"   Price: {rec['price']}")
+            if rec.get("departure_at"):
+                print(f"   Departure: {rec['departure_at']}")
+            if rec.get("arrival_at"):
+                print(f"   Arrival: {rec['arrival_at']}")
+            if rec.get("duration"):
+                print(f"   Duration: {rec['duration']}")
+            if rec.get("stops") is not None:
+                print(f"   Stops: {rec['stops']}")
         if rec.get("contact_url"):
             print(f"   Contact: {rec['contact_url']}")
         print(f"   Search: {rec['google_flights_url']}")
