@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+
+data/raw/html/*.html
+data/processed/*.csv

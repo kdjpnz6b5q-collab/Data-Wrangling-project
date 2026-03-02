@@ -1,0 +1,20 @@
+[
+  {
+    "doc_id": "dot_refunds",
+    "title": "DOT Automatic Refund Rule",
+    "url": "https://www.transportation.gov/briefing-room/what-airline-passengers-need-know-about-dots-automatic-refund-rule",
+    "text": "The Department of Transportation requires automatic refunds for significant delays or cancellations when passengers choose not to travel. Airlines and ticket agents must return payment to the original form of payment. Credit-card refunds must be issued within seven business days and other payment refunds within twenty calendar days."
+  },
+  {
+    "doc_id": "aa_customer_service_plan",
+    "title": "American Airlines Customer Service Plan",
+    "url": "https://www.aa.com/i18n/customer-service/support/customer-service-plan.jsp",
+    "text": "American Airlines distinguishes controllable and uncontrollable disruptions. For controllable events caused by the airline, American may provide approved hotel vouchers, ground transportation vouchers, and meal vouchers for long delays. For uncontrollable events such as weather or air traffic control, American will generally rebook customers on the next available flight, and customers are responsible for their own hotel, meals, and incidental expenses."
+  },
+  {
+    "doc_id": "delta_customer_commitment",
+    "title": "Delta Customer Commitment",
+    "url": "https://www.delta.com/us/en/legal/customer-commitment",
+    "text": "Delta states that for delays or cancellations within Delta's control, overnight customers away from home may receive hotel accommodations and transportation, and delays over three hours may qualify for meal vouchers. Benefits do not generally apply when disruptions are outside Delta control, including weather events."
+  }
+]
