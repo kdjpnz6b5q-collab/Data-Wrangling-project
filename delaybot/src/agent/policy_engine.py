@@ -947,7 +947,20 @@ def query_policy(
             scored.append((s, row))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    top_rows = [r for _, r in scored[:top_k]]
+    top_rows: list[dict[str, str]] = []
+    seen_docs: set[tuple[str, str, str]] = set()
+    for _, row in scored:
+        doc_key = (
+            row.get("doc_id", ""),
+            row.get("title", ""),
+            row.get("url", ""),
+        )
+        if doc_key in seen_docs:
+            continue
+        seen_docs.add(doc_key)
+        top_rows.append(row)
+        if len(top_rows) >= top_k:
+            break
 
     compensation = build_compensation_summary(
         question=question,
