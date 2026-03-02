@@ -30,6 +30,26 @@ IATA_TO_AIRLINE = {
     "U2": "easyjet",
     "AF": "air_france",
     "BA": "british_airways",
+    "EK": "emirates",
+    "QR": "qatar_airways",
+    "SQ": "singapore_airlines",
+    "TK": "turkish_airlines",
+    "AC": "air_canada",
+    "KL": "klm",
+    "IB": "iberia",
+    "LA": "latam",
+    "AV": "avianca",
+    "EY": "etihad",
+    "VS": "virgin_atlantic",
+    "NH": "ana",
+    "JL": "japan_airlines",
+    "MU": "china_eastern",
+    "CZ": "china_southern",
+    "CA": "air_china",
+    "6E": "indigo",
+    "QF": "qantas",
+    "SV": "saudia",
+    "LX": "swiss",
 }
 
 AIRLINE_TO_IATA = {airline: code for code, airline in IATA_TO_AIRLINE.items()}
@@ -38,10 +58,25 @@ ALLIANCE_OF = {
     "american": "oneworld",
     "alaska": "oneworld",
     "british_airways": "oneworld",
+    "iberia": "oneworld",
+    "qatar_airways": "oneworld",
+    "japan_airlines": "oneworld",
+    "qantas": "oneworld",
     "delta": "skyteam",
     "air_france": "skyteam",
+    "klm": "skyteam",
+    "china_eastern": "skyteam",
+    "china_southern": "skyteam",
+    "latam": "skyteam",
     "united": "star_alliance",
     "lufthansa": "star_alliance",
+    "turkish_airlines": "star_alliance",
+    "air_canada": "star_alliance",
+    "singapore_airlines": "star_alliance",
+    "avianca": "star_alliance",
+    "ana": "star_alliance",
+    "swiss": "star_alliance",
+    "air_china": "star_alliance",
 }
 
 ALLIANCE_LABELS = {
@@ -51,9 +86,34 @@ ALLIANCE_LABELS = {
 }
 
 ALLIANCE_MEMBERS = {
-    "oneworld": ["american", "alaska", "british_airways"],
-    "skyteam": ["delta", "air_france"],
-    "star_alliance": ["united", "lufthansa"],
+    "oneworld": [
+        "american",
+        "alaska",
+        "british_airways",
+        "iberia",
+        "qatar_airways",
+        "japan_airlines",
+        "qantas",
+    ],
+    "skyteam": [
+        "delta",
+        "air_france",
+        "klm",
+        "china_eastern",
+        "china_southern",
+        "latam",
+    ],
+    "star_alliance": [
+        "united",
+        "lufthansa",
+        "turkish_airlines",
+        "air_canada",
+        "singapore_airlines",
+        "avianca",
+        "ana",
+        "swiss",
+        "air_china",
+    ],
 }
 
 AIRLINE_REGION = {
@@ -75,12 +135,49 @@ AIRLINE_REGION = {
     "easyjet": "eu",
     "air_france": "eu",
     "british_airways": "eu",
+    "klm": "eu",
+    "iberia": "eu",
+    "virgin_atlantic": "eu",
+    "swiss": "eu",
+    "emirates": "middle_east",
+    "qatar_airways": "middle_east",
+    "etihad": "middle_east",
+    "saudia": "middle_east",
+    "singapore_airlines": "apac",
+    "ana": "apac",
+    "japan_airlines": "apac",
+    "qantas": "apac",
+    "turkish_airlines": "eu",
+    "air_canada": "north_america",
+    "latam": "latam",
+    "avianca": "latam",
+    "china_eastern": "china",
+    "china_southern": "china",
+    "air_china": "china",
+    "indigo": "india",
 }
 
 REGIONAL_FALLBACKS = {
     "us": ["american", "delta", "united", "southwest", "jetblue", "alaska"],
-    "eu": ["lufthansa", "ryanair", "easyjet", "air_france", "british_airways"],
-    "global": ["american", "delta", "united", "lufthansa", "air_france", "british_airways"],
+    "eu": ["lufthansa", "british_airways", "air_france", "klm", "iberia", "swiss"],
+    "middle_east": ["emirates", "qatar_airways", "etihad", "saudia", "turkish_airlines"],
+    "apac": ["singapore_airlines", "ana", "japan_airlines", "qantas"],
+    "north_america": ["air_canada", "american", "delta", "united"],
+    "latam": ["latam", "avianca", "american", "delta"],
+    "china": ["air_china", "china_eastern", "china_southern", "singapore_airlines"],
+    "india": ["indigo", "singapore_airlines", "qatar_airways", "emirates"],
+    "global": [
+        "american",
+        "delta",
+        "united",
+        "lufthansa",
+        "air_france",
+        "british_airways",
+        "emirates",
+        "qatar_airways",
+        "singapore_airlines",
+        "air_canada",
+    ],
 }
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -109,7 +206,7 @@ def parse_departure_time(raw: str) -> datetime | None:
 
 def parse_flight_number(flight_number: str) -> tuple[str | None, str | None, str]:
     clean = re.sub(r"\s+", "", flight_number.upper())
-    m = re.match(r"^([A-Z]{2,3})(\d{1,4}[A-Z]?)$", clean)
+    m = re.match(r"^([A-Z0-9]{2,3})(\d{1,4}[A-Z]?)$", clean)
     if not m:
         return None, None, clean
 
@@ -297,9 +394,7 @@ def _amadeus_fetch_live_offers(
     candidate_airlines: list[str],
     max_results: int,
 ) -> tuple[list[dict[str, Any]], str, str]:
-    """
-    Returns: (recommendations, data_source, note)
-    """
+    """Returns: (recommendations, data_source, note)."""
     missing = _missing_amadeus_credentials()
     if missing:
         missing_text = ", ".join(missing)
@@ -314,7 +409,7 @@ def _amadeus_fetch_live_offers(
 
     client_id = get_amadeus_credential("AMADEUS_CLIENT_ID")
     client_secret = get_amadeus_credential("AMADEUS_CLIENT_SECRET")
-    base_url = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com").rstrip("/")
+    base_url = (get_amadeus_credential("AMADEUS_BASE_URL") or "https://test.api.amadeus.com").rstrip("/")
 
     try:
         import requests
@@ -451,7 +546,7 @@ def recommend_alternative_flights(
     iata_code, source_airline, normalized_flight = parse_flight_number(flight_number)
     if source_airline is None:
         errors.append(
-            "Could not detect airline from flight number. Use IATA style (example: AA123, DL456, BA98)."
+            "Could not detect airline from flight number. Use IATA style (example: AA123, DL456, EK203)."
         )
 
     if errors:

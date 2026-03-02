@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime
 
@@ -9,9 +10,14 @@ import streamlit as st
 from policy_engine import (
     AIRLINE_LABELS,
     DISRUPTION_LABELS,
+    EVENT_TYPE_LABELS,
     query_policy,
 )
-from flight_recommender import recommend_alternative_flights
+from flight_recommender import (
+    get_amadeus_credential,
+    has_amadeus_credentials,
+    recommend_alternative_flights,
+)
 
 st.set_page_config(page_title="DelayBot", page_icon="✈", layout="wide")
 st.title("DelayBot: Airline Policy QA")
@@ -26,11 +32,14 @@ question = st.text_input(
 
 selected_airline = ""
 selected_disruption = ""
+selected_event_type = ""
+delay_hours_override: float | None = None
+notice_hours_override: float | None = None
 
 if question.strip():
     base = query_policy(question, top_k=3)
 
-    cols = st.columns(2)
+    cols = st.columns(3)
     with cols[0]:
         airline_options = [""] + base.get("airline_options", [])
         format_airline = lambda key: "Select airline..." if key == "" else AIRLINE_LABELS.get(key, key)
@@ -59,14 +68,61 @@ if question.strip():
             help="Examples: weather, mechanical, crew, air traffic control, security/geopolitical.",
         )
 
-    if base.get("missing_fields"):
-        st.warning(base.get("follow_up_prompt", "Please fill missing fields."))
+    with cols[2]:
+        event_type_options = [""] + base.get("event_type_options", [])
+        format_event = lambda key: "Select event type..." if key == "" else EVENT_TYPE_LABELS.get(key, key)
+        inferred_event_type = base.get("event_type") or ""
+        default_event_idx = (
+            event_type_options.index(inferred_event_type) if inferred_event_type in event_type_options else 0
+        )
+        selected_event_type = st.selectbox(
+            "Event type",
+            options=event_type_options,
+            index=default_event_idx,
+            format_func=format_event,
+            help="Cancellation, delay, denied boarding, or general disruption.",
+        )
+
+    c_delay, c_notice = st.columns(2)
+    with c_delay:
+        delay_val = st.number_input(
+            "Delay duration (hours, optional)",
+            min_value=0.0,
+            max_value=72.0,
+            value=float(base.get("delay_hours") or 0.0),
+            step=0.5,
+        )
+        delay_hours_override = delay_val if delay_val > 0 else None
+    with c_notice:
+        notice_val = st.number_input(
+            "Cancellation notice before departure (hours, optional)",
+            min_value=0.0,
+            max_value=720.0,
+            value=float(base.get("notice_hours") or 0.0),
+            step=1.0,
+        )
+        notice_hours_override = notice_val if notice_val > 0 else None
+
+    missing_after_selection: list[str] = []
+    if not (selected_airline or base.get("airline")):
+        missing_after_selection.append("airline")
+    if not (selected_disruption or base.get("disruption")):
+        missing_after_selection.append("delay/disruption type")
+    if missing_after_selection:
+        st.warning(
+            "I need a bit more information before giving a precise answer: "
+            + ", ".join(missing_after_selection)
+            + "."
+        )
 
     if st.button("Get answer", type="primary"):
         result = query_policy(
             question,
             airline_override=selected_airline or None,
             disruption_override=selected_disruption or None,
+            event_type_override=selected_event_type or None,
+            delay_hours_override=delay_hours_override,
+            notice_hours_override=notice_hours_override,
         )
 
         if not result.get("ok"):
@@ -74,12 +130,15 @@ if question.strip():
         else:
             airline = result.get("airline")
             disruption = result.get("disruption")
+            event_type = result.get("event_type")
 
             chips = []
             if airline:
                 chips.append(f"Airline: {AIRLINE_LABELS.get(airline, airline)}")
             if disruption:
                 chips.append(f"Type: {DISRUPTION_LABELS.get(disruption, disruption)}")
+            if event_type:
+                chips.append(f"Event: {EVENT_TYPE_LABELS.get(event_type, event_type)}")
             if chips:
                 st.info(" | ".join(chips))
 
@@ -91,6 +150,22 @@ if question.strip():
             contact_url = result.get("contact_url", "")
             if contact_url:
                 st.markdown(f"Official contact page: [{contact_url}]({contact_url})")
+
+            expected_comp = result.get("expected_compensation")
+            comp_notes = result.get("compensation_notes", [])
+            if expected_comp or comp_notes:
+                st.subheader("Expected compensation (not guaranteed)")
+                if expected_comp:
+                    st.write(expected_comp)
+                if comp_notes:
+                    st.markdown("\n".join(f"- {line}" for line in comp_notes))
+
+            email_subject = result.get("refund_email_subject")
+            email_body = result.get("refund_email_body")
+            if email_subject and email_body:
+                st.subheader("Draft refund/compensation email")
+                st.write(f"Subject: {email_subject}")
+                st.code(email_body, language="text")
 
             evidence = result.get("evidence", [])
             if evidence:
@@ -121,6 +196,60 @@ st.header("Alternative Flight Finder")
 st.caption(
     "Enter your original flight details and get alliance-aware fallback options with contact links."
 )
+
+if "amadeus_client_id" not in st.session_state:
+    st.session_state["amadeus_client_id"] = get_amadeus_credential("AMADEUS_CLIENT_ID")
+if "amadeus_client_secret" not in st.session_state:
+    st.session_state["amadeus_client_secret"] = get_amadeus_credential("AMADEUS_CLIENT_SECRET")
+if "amadeus_base_url" not in st.session_state:
+    st.session_state["amadeus_base_url"] = (
+        get_amadeus_credential("AMADEUS_BASE_URL") or "https://test.api.amadeus.com"
+    )
+
+with st.expander("Live fare setup (Amadeus)", expanded=not has_amadeus_credentials()):
+    st.caption(
+        "Paste Amadeus credentials here for this Streamlit session. "
+        "They are not written to disk unless you add them to delaybot/.env."
+    )
+    st.text_input("AMADEUS_CLIENT_ID", key="amadeus_client_id")
+    st.text_input("AMADEUS_CLIENT_SECRET", type="password", key="amadeus_client_secret")
+    st.text_input("AMADEUS_BASE_URL", key="amadeus_base_url")
+
+    b1, b2 = st.columns(2)
+    with b1:
+        if st.button("Use these credentials", type="primary"):
+            client_id = st.session_state.get("amadeus_client_id", "").strip()
+            client_secret = st.session_state.get("amadeus_client_secret", "").strip()
+            base_url = st.session_state.get("amadeus_base_url", "").strip()
+
+            if client_id and client_secret:
+                os.environ["AMADEUS_CLIENT_ID"] = client_id
+                os.environ["AMADEUS_CLIENT_SECRET"] = client_secret
+                if base_url:
+                    os.environ["AMADEUS_BASE_URL"] = base_url
+                st.success("Live Amadeus credentials loaded for this app session.")
+                st.rerun()
+            else:
+                st.error("Please provide both AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET.")
+
+    with b2:
+        if st.button("Clear credentials"):
+            os.environ.pop("AMADEUS_CLIENT_ID", None)
+            os.environ.pop("AMADEUS_CLIENT_SECRET", None)
+            os.environ.pop("AMADEUS_BASE_URL", None)
+            st.session_state["amadeus_client_id"] = ""
+            st.session_state["amadeus_client_secret"] = ""
+            st.session_state["amadeus_base_url"] = "https://test.api.amadeus.com"
+            st.info("Live credentials cleared for this session.")
+            st.rerun()
+
+    if has_amadeus_credentials():
+        st.success("Live fare credentials detected.")
+    else:
+        st.warning(
+            "Live fare credentials not detected yet. "
+            "You can still use alliance fallback recommendations."
+        )
 
 with st.form("alternative_flights_form", clear_on_submit=False):
     now = datetime.now().replace(second=0, microsecond=0)

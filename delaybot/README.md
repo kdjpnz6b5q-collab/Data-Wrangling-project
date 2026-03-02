@@ -34,7 +34,9 @@ make ui
 Then open the local Streamlit URL (usually `http://localhost:8501`).
 
 The UI now includes:
-- Policy Q&A with missing-field dropdowns (airline/disruption type)
+- Policy Q&A with missing-field dropdowns (airline/disruption/event type)
+- Optional compensation inputs (delay hours and cancellation notice timing)
+- Expected compensation guidance (non-guaranteed) and draft refund/compensation email text
 - Alternative Flight Finder with:
   - flight number
   - depart airport code (3 letters)
@@ -65,12 +67,36 @@ Each airline has its own scraping script, named after the airline:
 - `src/scrape/scrape_easyjet.py`
 - `src/scrape/scrape_air_france.py`
 - `src/scrape/scrape_british_airways.py`
+- `src/scrape/scrape_emirates.py`
+- `src/scrape/scrape_qatar_airways.py`
+- `src/scrape/scrape_singapore_airlines.py`
+- `src/scrape/scrape_turkish_airlines.py`
+- `src/scrape/scrape_air_canada.py`
+- `src/scrape/scrape_klm.py`
+- `src/scrape/scrape_iberia.py`
+- `src/scrape/scrape_latam.py`
+- `src/scrape/scrape_avianca.py`
+- `src/scrape/scrape_etihad.py`
+- `src/scrape/scrape_virgin_atlantic.py`
+- `src/scrape/scrape_ana.py`
+- `src/scrape/scrape_japan_airlines.py`
+- `src/scrape/scrape_china_eastern.py`
+- `src/scrape/scrape_china_southern.py`
+- `src/scrape/scrape_air_china.py`
+- `src/scrape/scrape_indigo.py`
+- `src/scrape/scrape_qantas.py`
+- `src/scrape/scrape_saudia.py`
+- `src/scrape/scrape_swiss.py`
 
 `src/scrape/scrape_pages.py` runs all of them in sequence.
 
 Current coverage:
 - U.S.-based airlines: American, Delta, United, Southwest, JetBlue, Alaska, Frontier, Spirit, Hawaiian, Allegiant, Avelo, Breeze, Sun Country
-- Europe (big 5 set): Lufthansa, Ryanair, easyJet, Air France, British Airways
+- Europe: Lufthansa, Ryanair, easyJet, Air France, British Airways, KLM, Iberia, SWISS, Virgin Atlantic
+- Middle East: Emirates, Qatar Airways, Etihad, Saudia, Turkish Airlines
+- Asia-Pacific: Singapore Airlines, ANA, Japan Airlines, IndiGo, Qantas
+- Americas (additional): Air Canada, LATAM, Avianca
+- China: Air China, China Eastern, China Southern
 
 ## Pipeline
 
@@ -82,14 +108,16 @@ Current coverage:
 3. `src/process/chunk_policy_text.py`
    - Chunks policy text for retrieval.
 4. `src/analysis/tag_policy_chunks.py`
-   - Adds tags (weather, hotel, meal, controllable/uncontrollable, etc.).
+   - Adds tags (weather, ATC/NAS, mechanical, late inbound aircraft, strike/labor, hotel, meal, refund, compensation, controllable/uncontrollable, etc.).
 5. `src/agent/ask_policy.py`
    - Answers in CLI.
    - Prompts for missing airline/disruption info if needed.
-   - Adds a post-answer contact instruction and airline contact page link.
+   - Supports optional event type and timing overrides.
+   - Adds post-answer contact instruction, expected compensation guidance, and draft refund email output.
 6. `src/agent/ask_policy_ui.py`
    - Streamlit UI with clickable dropdown boxes for missing fields.
-   - Shows the same contact guidance block and clickable contact link.
+   - Adds event type, delay-hours, and cancellation-notice inputs.
+   - Shows contact guidance, expected compensation section, and draft email text.
 7. `src/agent/flight_recommender.py`
    - Alliance-aware alternative flight recommendations (Phase 1, no live fare feed).
 8. `src/agent/recommend_alternatives.py`
