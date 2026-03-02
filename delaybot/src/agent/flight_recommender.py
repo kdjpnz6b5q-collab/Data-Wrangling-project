@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -81,6 +83,8 @@ REGIONAL_FALLBACKS = {
     "global": ["american", "delta", "united", "lufthansa", "air_france", "british_airways"],
 }
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 def normalize_airport(code: str) -> str:
     return code.strip().upper()
@@ -120,8 +124,70 @@ def build_google_flights_url(origin: str, destination: str, departure_date: str,
     return f"https://www.google.com/travel/flights?q={quote_plus(query)}"
 
 
+def _parse_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
+@lru_cache(maxsize=1)
+def _dotenv_values() -> dict[str, str]:
+    merged: dict[str, str] = {}
+    for path in [PROJECT_ROOT / ".env", Path.cwd() / ".env"]:
+        merged.update(_parse_env_file(path))
+    return merged
+
+
+def _streamlit_secret(name: str) -> str:
+    try:
+        import streamlit as st
+    except Exception:
+        return ""
+
+    try:
+        value = st.secrets.get(name, "")
+    except Exception:
+        return ""
+    return str(value or "")
+
+
+def get_amadeus_credential(name: str) -> str:
+    env_value = os.getenv(name, "").strip()
+    if env_value:
+        return env_value
+
+    secret_value = _streamlit_secret(name).strip()
+    if secret_value:
+        return secret_value
+
+    return _dotenv_values().get(name, "").strip()
+
+
+def _missing_amadeus_credentials() -> list[str]:
+    missing: list[str] = []
+    for name in ["AMADEUS_CLIENT_ID", "AMADEUS_CLIENT_SECRET"]:
+        if not get_amadeus_credential(name):
+            missing.append(name)
+    return missing
+
+
 def has_amadeus_credentials() -> bool:
-    return bool(os.getenv("AMADEUS_CLIENT_ID", "") and os.getenv("AMADEUS_CLIENT_SECRET", ""))
+    return not _missing_amadeus_credentials()
 
 
 def build_candidate_airlines(source_airline: str) -> list[str]:
@@ -234,11 +300,20 @@ def _amadeus_fetch_live_offers(
     """
     Returns: (recommendations, data_source, note)
     """
-    if not has_amadeus_credentials():
-        return [], "alliance_fallback", "Live fare data is not enabled yet (no Amadeus credentials found)."
+    missing = _missing_amadeus_credentials()
+    if missing:
+        missing_text = ", ".join(missing)
+        return (
+            [],
+            "alliance_fallback",
+            (
+                "Live fare data is not enabled yet. Missing credentials: "
+                f"{missing_text}. Add them to environment, delaybot/.env, or Streamlit secrets."
+            ),
+        )
 
-    client_id = os.getenv("AMADEUS_CLIENT_ID", "")
-    client_secret = os.getenv("AMADEUS_CLIENT_SECRET", "")
+    client_id = get_amadeus_credential("AMADEUS_CLIENT_ID")
+    client_secret = get_amadeus_credential("AMADEUS_CLIENT_SECRET")
     base_url = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com").rstrip("/")
 
     try:

@@ -100,13 +100,28 @@ Current coverage:
 DelayBot does not scrape Google Flights directly. It generates Google Flights search links and alliance-based options.
 DelayBot can now use live offers from Amadeus when credentials are set.
 
-Set env vars before running:
+Set credentials before running (three supported options):
 
+Option 1 (shell env vars):
 ```bash
 export AMADEUS_CLIENT_ID="your_client_id"
 export AMADEUS_CLIENT_SECRET="your_client_secret"
 # optional, defaults to test endpoint:
 export AMADEUS_BASE_URL="https://test.api.amadeus.com"
+```
+
+Option 2 (`delaybot/.env`):
+```bash
+AMADEUS_CLIENT_ID=your_client_id
+AMADEUS_CLIENT_SECRET=your_client_secret
+AMADEUS_BASE_URL=https://test.api.amadeus.com
+```
+
+Option 3 (Streamlit secrets in `.streamlit/secrets.toml`):
+```toml
+AMADEUS_CLIENT_ID = "your_client_id"
+AMADEUS_CLIENT_SECRET = "your_client_secret"
+AMADEUS_BASE_URL = "https://test.api.amadeus.com"
 ```
 
 If credentials are missing or API calls fail, DelayBot automatically falls back to alliance-based recommendations.
