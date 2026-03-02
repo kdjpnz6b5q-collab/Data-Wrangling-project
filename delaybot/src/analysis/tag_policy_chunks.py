@@ -9,7 +9,19 @@ IN_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks.csv"
 OUT_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks_tagged.csv"
 
 TAG_RULES = {
-    "weather": ["weather", "storm", "snow", "hurricane", "thunderstorm", "lightning", "ice", "fog"],
+    "weather": [
+        "weather",
+        "storm",
+        "snow",
+        "hurricane",
+        "thunderstorm",
+        "lightning",
+        "ice",
+        "fog",
+        "winter storm",
+        "blizzard",
+        "typhoon",
+    ],
     "air_traffic_control": [
         "air traffic control",
         "atc",
@@ -23,8 +35,15 @@ TAG_RULES = {
     "compensation": ["compensation", "cash payment", "cash compensation", "claim"],
     "reimbursement": ["reimburse", "reimbursement", "reasonable costs"],
     "rebooking": ["rebook", "next available flight", "re-accommodate"],
+    "late_inbound_aircraft": [
+        "late inbound aircraft",
+        "late arriving aircraft",
+        "incoming aircraft",
+        "aircraft rotation",
+    ],
     "controllable": ["within the airline", "controllable", "caused by the airline", "within our control"],
     "uncontrollable": ["uncontrollable", "outside our control", "acts of god"],
+    "strike_or_labor": ["strike", "labor action", "industrial action", "union action", "walkout"],
     "mechanical": [
         "mechanical",
         "maintenance",
@@ -45,6 +64,7 @@ TAG_RULES = {
         "no-fly zone",
         "military",
         "civil unrest",
+        "middle east",
     ],
     "airport_operations": ["airport closure", "runway closure", "airport strike", "terminal closure"],
     "denied_boarding": ["denied boarding", "involuntary denied boarding", "overbook", "bumped"],

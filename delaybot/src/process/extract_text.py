@@ -33,10 +33,52 @@ def html_to_text(raw_html: str) -> str:
         from bs4 import BeautifulSoup  # type: ignore
 
         soup = BeautifulSoup(raw_html, "html.parser")
-        text = soup.get_text("\n")
+        for tag in soup(
+            [
+                "script",
+                "style",
+                "noscript",
+                "svg",
+                "form",
+                "button",
+                "header",
+                "footer",
+                "nav",
+                "aside",
+            ]
+        ):
+            tag.decompose()
+
+        root = soup.find("main") or soup.find("article") or soup.body or soup
+        lines = [ln.strip() for ln in root.get_text("\n").splitlines()]
+        cleaned_lines: list[str] = []
+        seen: set[str] = set()
+        for ln in lines:
+            if len(ln) < 2:
+                continue
+            low = ln.lower()
+            if any(
+                marker in low
+                for marker in [
+                    "cookie",
+                    "privacy policy",
+                    "accept all",
+                    "sign in",
+                    "subscribe",
+                    "skip to content",
+                    "javascript",
+                ]
+            ):
+                continue
+            if low in seen:
+                continue
+            seen.add(low)
+            cleaned_lines.append(ln)
+        text = " ".join(cleaned_lines)
     except Exception:
         text = re.sub(r"<script.*?</script>", " ", raw_html, flags=re.I | re.S)
         text = re.sub(r"<style.*?</style>", " ", text, flags=re.I | re.S)
+        text = re.sub(r"<(nav|header|footer|aside).*?</\\1>", " ", text, flags=re.I | re.S)
         text = re.sub(r"<[^>]+>", " ", text)
 
     text = unescape(text)
