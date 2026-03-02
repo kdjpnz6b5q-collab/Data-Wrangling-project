@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 import streamlit as st
 
@@ -122,16 +123,19 @@ st.caption(
 )
 
 with st.form("alternative_flights_form", clear_on_submit=False):
-    c1, c2 = st.columns(2)
+    now = datetime.now().replace(second=0, microsecond=0)
+    c1, c2, c3 = st.columns(3)
     with c1:
         alt_flight_number = st.text_input("Flight number", placeholder="AA123")
         alt_origin = st.text_input("Depart airport code", placeholder="JFK")
     with c2:
         alt_destination = st.text_input("Destination airport code", placeholder="LHR")
-        alt_departure_time = st.text_input(
-            "Departure time (ISO)",
-            placeholder="2026-03-10T14:30",
-        )
+        alt_departure_date = st.date_input("Departure date", value=now.date())
+    with c3:
+        alt_departure_clock = st.time_input("Departure time", value=now.time(), step=900)
+
+    alt_departure_time = f"{alt_departure_date.isoformat()}T{alt_departure_clock.strftime('%H:%M')}"
+    st.caption(f"Selected departure: {alt_departure_time}")
 
     alt_max_results = st.slider("How many alternatives", min_value=3, max_value=8, value=5)
     alt_submit = st.form_submit_button("Recommend alternatives", type="primary")
