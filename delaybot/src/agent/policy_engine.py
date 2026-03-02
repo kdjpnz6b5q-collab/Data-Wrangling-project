@@ -59,6 +59,8 @@ DISRUPTION_LABELS = {
     "air traffic control": "Air traffic control",
     "mechanical": "Mechanical or maintenance issue",
     "crew": "Crew or staffing issue",
+    "security_geopolitical": "Security, war, or geopolitical event",
+    "airport operations": "Airport closure or operations issue",
     "other uncontrollable": "Other uncontrollable event",
     "unknown": "Not sure yet",
 }
@@ -86,15 +88,124 @@ AIRLINE_ALIASES = {
 }
 
 DISRUPTION_ALIASES = {
-    "weather": ["weather", "storm", "snow", "wind", "hurricane", "fog"],
-    "air traffic control": ["air traffic", "atc", "faa ground stop", "ground stop"],
-    "mechanical": ["mechanical", "maintenance", "defect", "aircraft issue", "plane issue"],
-    "crew": ["crew", "staffing", "pilot", "flight attendant", "crew timeout"],
-    "other uncontrollable": ["uncontrollable", "act of god", "airport closure", "security event"],
+    "weather": [
+        "weather",
+        "storm",
+        "snow",
+        "wind",
+        "hurricane",
+        "fog",
+        "thunderstorm",
+        "lightning",
+        "blizzard",
+        "ice",
+        "rain",
+    ],
+    "air traffic control": [
+        "air traffic",
+        "atc",
+        "faa ground stop",
+        "ground stop",
+        "flow control",
+        "airspace congestion",
+        "slot restriction",
+    ],
+    "mechanical": [
+        "mechanical",
+        "maintenance",
+        "defect",
+        "aircraft issue",
+        "plane issue",
+        "technical issue",
+        "technical fault",
+        "equipment issue",
+        "broken",
+        "broken window",
+        "engine issue",
+        "hydraulic issue",
+    ],
+    "crew": [
+        "crew",
+        "staffing",
+        "pilot",
+        "flight attendant",
+        "crew timeout",
+        "crew rest",
+        "crew legal",
+        "no pilot",
+    ],
+    "security_geopolitical": [
+        "war",
+        "conflict",
+        "military conflict",
+        "geopolitical",
+        "terror",
+        "terrorism",
+        "security threat",
+        "security event",
+        "bomb threat",
+        "missile",
+        "drone attack",
+        "airspace closure",
+        "no-fly zone",
+        "civil unrest",
+        "political unrest",
+        "middle east",
+    ],
+    "airport operations": [
+        "airport closure",
+        "runway closure",
+        "airport strike",
+        "ground handling issue",
+        "airport operations",
+        "terminal closure",
+        "power outage",
+    ],
+    "other uncontrollable": [
+        "uncontrollable",
+        "act of god",
+        "volcanic ash",
+        "earthquake",
+        "government restriction",
+        "government order",
+    ],
 }
 
-UNCONTROLLABLE_TYPES = {"weather", "air traffic control", "other uncontrollable"}
+UNCONTROLLABLE_TYPES = {
+    "weather",
+    "air traffic control",
+    "security_geopolitical",
+    "airport operations",
+    "other uncontrollable",
+}
 CONTROLLABLE_TYPES = {"mechanical", "crew"}
+
+DISRUPTION_TAG_MAP = {
+    "weather": {"weather"},
+    "air traffic control": {"air_traffic_control", "air traffic control"},
+    "mechanical": {"mechanical"},
+    "crew": {"crew"},
+    "security_geopolitical": {"security_geopolitical", "security", "geopolitical"},
+    "airport operations": {"airport_operations"},
+    "other uncontrollable": {"uncontrollable"},
+}
+
+EUROPEAN_AIRLINES = {"lufthansa", "ryanair", "easyjet", "air_france", "british_airways"}
+
+NUMBER_WORDS = {
+    "one": 1.0,
+    "two": 2.0,
+    "three": 3.0,
+    "four": 4.0,
+    "five": 5.0,
+    "six": 6.0,
+    "seven": 7.0,
+    "eight": 8.0,
+    "nine": 9.0,
+    "ten": 10.0,
+    "eleven": 11.0,
+    "twelve": 12.0,
+}
 
 STOPWORDS = {
     "a",
@@ -143,12 +254,25 @@ EXTRA_WEIGHTS = {
     "hotel": 2.5,
     "meal": 1.8,
     "refund": 2.2,
+    "compensation": 2.2,
+    "reimburse": 2.0,
+    "reimbursement": 2.0,
+    "voucher": 1.7,
+    "rights": 1.4,
+    "cancel": 2.0,
     "rebook": 1.8,
     "rebooking": 1.8,
     "canceled": 2.0,
     "cancelled": 2.0,
     "delay": 1.2,
     "delayed": 1.2,
+    "war": 2.2,
+    "conflict": 2.2,
+    "security": 2.0,
+    "terrorism": 2.0,
+    "mechanical": 1.8,
+    "maintenance": 1.8,
+    "broken": 1.5,
 }
 
 
@@ -225,9 +349,47 @@ def detect_disruption(question: str) -> str | None:
     q = question.lower()
     for disruption, aliases in DISRUPTION_ALIASES.items():
         for alias in aliases:
-            if alias in q:
+            if re.search(rf"\b{re.escape(alias)}\b", q):
                 return disruption
     return None
+
+
+def disruption_tags(disruption: str | None) -> set[str]:
+    if not disruption:
+        return set()
+    tags = {disruption}
+    tags.update(DISRUPTION_TAG_MAP.get(disruption, set()))
+    if disruption in UNCONTROLLABLE_TYPES:
+        tags.add("uncontrollable")
+    if disruption in CONTROLLABLE_TYPES:
+        tags.add("controllable")
+    return tags
+
+
+def extract_delay_hours(question: str) -> float | None:
+    q = question.lower()
+    digit_match = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr|h)\b", q)
+    if digit_match:
+        return float(digit_match.group(1))
+
+    word_match = re.search(
+        r"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:hours?|hrs?|hr)\b",
+        q,
+    )
+    if word_match:
+        return NUMBER_WORDS.get(word_match.group(1))
+    return None
+
+
+def detect_event_type(question: str) -> str:
+    q = question.lower()
+    if any(k in q for k in ["denied boarding", "bumped", "overbook"]):
+        return "denied_boarding"
+    if any(k in q for k in ["cancelled", "canceled", "cancellation", "cancel"]):
+        return "cancellation"
+    if any(k in q for k in ["delay", "delayed"]):
+        return "delay"
+    return "disruption"
 
 
 def build_contact_guidance(airline: str | None) -> tuple[str, str]:
@@ -286,8 +448,8 @@ def score_row(
             score -= 2.0
 
     if disruption:
-        tags = (row.get("tags") or "").split("|")
-        if disruption in tags:
+        tags = set((row.get("tags") or "").split("|"))
+        if disruption_tags(disruption).intersection(tags):
             score += 2.5
 
         if disruption == "weather" and "weather" in text_l:
@@ -296,10 +458,19 @@ def score_row(
             score += 1.5
         if disruption == "crew" and any(k in text_l for k in ["crew", "staffing", "pilot"]):
             score += 1.5
+        if disruption == "security_geopolitical" and any(
+            k in text_l
+            for k in ["war", "conflict", "security", "terror", "airspace", "military", "geopolitical"]
+        ):
+            score += 1.6
 
     if any(k in question.lower() for k in ["hotel", "meal", "voucher", "accommodation"]):
         if any(k in text_l for k in ["hotel", "meal", "voucher", "accommodation", "lodging"]):
             score += 1.2
+
+    if any(k in question.lower() for k in ["compensation", "rights", "refund", "reimburse"]):
+        if any(k in text_l for k in ["refund", "compensation", "voucher", "reimburse", "credit"]):
+            score += 1.4
 
     return score
 
@@ -314,46 +485,89 @@ def synthesize_answer(
         return "No strong policy match found yet."
 
     q = question.lower()
-    asks_hotel_meal = any(k in q for k in ["hotel", "meal", "voucher", "accommodation", "lodging"])
-    asks_refund = "refund" in q
-
+    asks_hotel_meal = any(
+        k in q for k in ["hotel", "meal", "voucher", "accommodation", "lodging", "food"]
+    )
+    asks_refund = any(k in q for k in ["refund", "money back", "original form of payment"])
+    asks_compensation = any(
+        k in q
+        for k in [
+            "compensation",
+            "rights",
+            "reimburse",
+            "reimbursement",
+            "voucher",
+            "cash",
+            "claim",
+        ]
+    )
+    event_type = detect_event_type(question)
+    delay_hours = extract_delay_hours(question)
     airline_label = AIRLINE_LABELS.get(airline or "", "this airline")
+    disruption_label = (
+        DISRUPTION_LABELS.get(disruption, "the disruption type you selected") if disruption else "this disruption"
+    )
 
-    if asks_refund:
-        return (
-            "DOT baseline: when a qualifying significant cancellation or delay occurs and you choose not to travel, "
-            "a refund should be returned to the original form of payment."
+    lines = [f"Likely rights summary for {airline_label}:"]
+
+    if disruption:
+        if disruption in CONTROLLABLE_TYPES:
+            lines.append(
+                f"- {disruption_label} is usually treated as within airline control, so care support is more likely."
+            )
+            lines.append(
+                "- Rebooking is typically offered, and for long/overnight disruptions you should ask for meal and hotel support."
+            )
+        elif disruption in UNCONTROLLABLE_TYPES:
+            lines.append(
+                f"- {disruption_label} is usually treated as outside airline control (similar to weather/ATC cases)."
+            )
+            lines.append(
+                "- Rebooking is typically prioritized, but hotel/meal compensation is often limited or not guaranteed."
+            )
+        else:
+            lines.append(
+                f"- {disruption_label} may be treated differently by carrier; ask the airline to classify it as controllable vs uncontrollable."
+            )
+    else:
+        lines.append(
+            "- Rights depend heavily on the disruption cause. Select a disruption type for a more specific answer."
         )
 
-    if airline and disruption and asks_hotel_meal:
-        if disruption in UNCONTROLLABLE_TYPES:
-            return (
-                f"For {airline_label}, {DISRUPTION_LABELS[disruption].lower()} is usually treated as outside airline control. "
-                "In those cases, rebooking is typically offered, while hotel and meal costs are often not guaranteed."
-            )
-        if disruption in CONTROLLABLE_TYPES:
-            return (
-                f"For {airline_label}, {DISRUPTION_LABELS[disruption].lower()} is usually treated as controllable. "
-                "Policies often provide meal and possible hotel support for long or overnight disruptions."
-            )
-
-    if airline and disruption:
-        if disruption in UNCONTROLLABLE_TYPES:
-            return (
-                f"For {airline_label}, {DISRUPTION_LABELS[disruption].lower()} is usually treated as outside airline control. "
-                "Rebooking is typically prioritized, while compensation or overnight coverage is often limited."
-            )
-        if disruption in CONTROLLABLE_TYPES:
-            return (
-                f"For {airline_label}, {DISRUPTION_LABELS[disruption].lower()} is usually treated as controllable. "
-                "Operationally caused disruptions may qualify for additional care depending on delay length and overnight impact."
-            )
-        return (
-            f"Based on the retrieved policy text for {airline_label} and {DISRUPTION_LABELS.get(disruption, disruption).lower()}, "
-            "see the evidence below for the exact conditions and thresholds."
+    if event_type in {"cancellation", "delay"} or asks_refund or asks_compensation:
+        lines.append(
+            "- DOT baseline: if there is a qualifying cancellation or significant delay/change and you choose not to travel, ask for a refund to the original form of payment."
+        )
+    if event_type == "denied_boarding":
+        lines.append(
+            "- For involuntary denied boarding (bumped flights), ask for written denied-boarding rights and compensation details."
         )
 
-    return "Best answer from available policy text is shown below with supporting snippets."
+    if asks_hotel_meal:
+        lines.append(
+            "- Ask specifically whether meals, hotel, and ground transport are covered for your disruption category and delay length."
+        )
+
+    if delay_hours is not None:
+        if delay_hours >= 3:
+            lines.append(
+                f"- You reported about {delay_hours:g} hours of delay. Ask whether meal vouchers or reimbursement trigger at this threshold."
+            )
+        else:
+            lines.append(
+                f"- You reported about {delay_hours:g} hours of delay. Hotel coverage is less common unless it becomes overnight."
+            )
+
+    if airline in EUROPEAN_AIRLINES:
+        lines.append(
+            "- EU/UK route note: EC261/UK261 protections may apply depending on route, airline, notice period, and disruption cause."
+        )
+
+    lines.append("- Keep receipts and screenshots; ask the agent to note the disruption cause in writing.")
+    lines.append("- If denied by the airline, escalate through the airline complaint channel and then DOT/regulator complaint process.")
+    lines.append("- The evidence snippets below are the best matches from your loaded policy documents.")
+
+    return "\n".join(lines)
 
 
 def query_policy(
@@ -390,11 +604,7 @@ def query_policy(
             candidate_rows = focused
 
     if disruption:
-        target_tags = {disruption}
-        if disruption in UNCONTROLLABLE_TYPES:
-            target_tags.add("uncontrollable")
-        if disruption in CONTROLLABLE_TYPES:
-            target_tags.add("controllable")
+        target_tags = disruption_tags(disruption)
 
         disruption_focused = []
         for row in candidate_rows:
@@ -422,7 +632,9 @@ def query_policy(
         if "airline" in missing:
             missing_labels.append("airline")
         if "disruption" in missing:
-            missing_labels.append("delay/disruption type")
+            missing_labels.append(
+                "delay/disruption type (weather, mechanical, crew, security/geopolitical, etc.)"
+            )
         follow_up_prompt = (
             "I need a bit more information before giving a precise answer: "
             + ", ".join(missing_labels)

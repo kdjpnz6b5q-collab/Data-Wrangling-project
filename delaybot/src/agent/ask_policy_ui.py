@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 import streamlit as st
 
@@ -55,7 +56,7 @@ if question.strip():
             options=disruption_options,
             index=default_disruption_index,
             format_func=format_disruption,
-            help="Examples: weather, mechanical, crew, air traffic control.",
+            help="Examples: weather, mechanical, crew, air traffic control, security/geopolitical.",
         )
 
     if base.get("missing_fields"):
@@ -83,7 +84,7 @@ if question.strip():
                 st.info(" | ".join(chips))
 
             st.subheader("Answer")
-            st.write(result.get("answer", "No answer available."))
+            st.markdown(result.get("answer", "No answer available."))
 
             st.subheader("Contact the airline")
             st.write(result.get("contact_message", ""))
@@ -122,16 +123,19 @@ st.caption(
 )
 
 with st.form("alternative_flights_form", clear_on_submit=False):
-    c1, c2 = st.columns(2)
+    now = datetime.now().replace(second=0, microsecond=0)
+    c1, c2, c3 = st.columns(3)
     with c1:
         alt_flight_number = st.text_input("Flight number", placeholder="AA123")
         alt_origin = st.text_input("Depart airport code", placeholder="JFK")
     with c2:
         alt_destination = st.text_input("Destination airport code", placeholder="LHR")
-        alt_departure_time = st.text_input(
-            "Departure time (ISO)",
-            placeholder="2026-03-10T14:30",
-        )
+        alt_departure_date = st.date_input("Departure date", value=now.date())
+    with c3:
+        alt_departure_clock = st.time_input("Departure time", value=now.time(), step=900)
+
+    alt_departure_time = f"{alt_departure_date.isoformat()}T{alt_departure_clock.strftime('%H:%M')}"
+    st.caption(f"Selected departure: {alt_departure_time}")
 
     alt_max_results = st.slider("How many alternatives", min_value=3, max_value=8, value=5)
     alt_submit = st.form_submit_button("Recommend alternatives", type="primary")
@@ -160,6 +164,11 @@ if alt_submit:
                 f"Primary contact page: [{alt_result['contact_url']}]({alt_result['contact_url']})"
             )
         st.caption(alt_result.get("live_data_note", ""))
+        data_source = alt_result.get("data_source", "")
+        if data_source == "amadeus_live":
+            st.success("Using live flight offers from Amadeus.")
+        else:
+            st.info("Using alliance fallback recommendations.")
 
         st.subheader("Recommended alternatives")
         for i, rec in enumerate(alt_result.get("recommendations", []), start=1):
@@ -168,6 +177,21 @@ if alt_submit:
                 if code:
                     st.write(f"Carrier code: {code}")
                 st.write(f"Why: {rec['reason']}")
+                if rec.get("live_offer"):
+                    cols = st.columns(3)
+                    with cols[0]:
+                        if rec.get("price"):
+                            st.write(f"Price: {rec['price']}")
+                        if rec.get("stops") is not None:
+                            st.write(f"Stops: {rec['stops']}")
+                    with cols[1]:
+                        if rec.get("departure_at"):
+                            st.write(f"Departure: {rec['departure_at']}")
+                        if rec.get("arrival_at"):
+                            st.write(f"Arrival: {rec['arrival_at']}")
+                    with cols[2]:
+                        if rec.get("duration"):
+                            st.write(f"Duration: {rec['duration']}")
                 if rec.get("contact_url"):
                     st.markdown(f"Contact: [{rec['contact_url']}]({rec['contact_url']})")
                 st.markdown(

@@ -98,7 +98,33 @@ Current coverage:
 ## Live integration note
 
 DelayBot does not scrape Google Flights directly. It generates Google Flights search links and alliance-based options.
-Phase 2 can add live schedules/fares using a provider API (for example Amadeus).
+DelayBot can now use live offers from Amadeus when credentials are set.
+
+Set credentials before running (three supported options):
+
+Option 1 (shell env vars):
+```bash
+export AMADEUS_CLIENT_ID="your_client_id"
+export AMADEUS_CLIENT_SECRET="your_client_secret"
+# optional, defaults to test endpoint:
+export AMADEUS_BASE_URL="https://test.api.amadeus.com"
+```
+
+Option 2 (`delaybot/.env`):
+```bash
+AMADEUS_CLIENT_ID=your_client_id
+AMADEUS_CLIENT_SECRET=your_client_secret
+AMADEUS_BASE_URL=https://test.api.amadeus.com
+```
+
+Option 3 (Streamlit secrets in `.streamlit/secrets.toml`):
+```toml
+AMADEUS_CLIENT_ID = "your_client_id"
+AMADEUS_CLIENT_SECRET = "your_client_secret"
+AMADEUS_BASE_URL = "https://test.api.amadeus.com"
+```
+
+If credentials are missing or API calls fail, DelayBot automatically falls back to alliance-based recommendations.
 
 ## Data outputs
 
