@@ -9,7 +9,7 @@ source .venv/bin/activate
 
 python -m pip install --upgrade pip || true
 
-PKGS=(requests beautifulsoup4 pandas scikit-learn nltk)
+PKGS=(requests beautifulsoup4 pandas scikit-learn nltk streamlit)
 FAILED=0
 for pkg in "${PKGS[@]}"; do
   if ! python -m pip install "$pkg"; then

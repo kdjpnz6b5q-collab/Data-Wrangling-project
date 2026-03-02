@@ -58,7 +58,7 @@ def main() -> int:
         with OUT_CSV.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(
                 f,
-                fieldnames=["chunk_id", "doc_id", "title", "url", "chunk_text"],
+                fieldnames=["chunk_id", "doc_id", "airline", "title", "url", "chunk_text"],
             )
             writer.writeheader()
         print(f"Wrote empty chunk file -> {OUT_CSV}")
@@ -75,6 +75,7 @@ def main() -> int:
                 {
                     "chunk_id": f"{row['doc_id']}_{i:03d}",
                     "doc_id": row["doc_id"],
+                    "airline": row.get("airline", "unknown"),
                     "title": row["title"],
                     "url": row["url"],
                     "chunk_text": ck,
@@ -85,7 +86,7 @@ def main() -> int:
     with OUT_CSV.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["chunk_id", "doc_id", "title", "url", "chunk_text"],
+            fieldnames=["chunk_id", "doc_id", "airline", "title", "url", "chunk_text"],
         )
         writer.writeheader()
         writer.writerows(chunks_out)
