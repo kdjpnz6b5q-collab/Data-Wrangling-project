@@ -1,20 +1,20 @@
 # DelayBot
 
-DelayBot is a Streamlit app for airline disruption support.
-It helps travelers understand likely rights for delays/cancellations and suggests alternative flights.
+I made an app on Streamlit called Delaybot. We all know how frustrating it is when your flight gets delayed or sometimes even cancelled. What people often don't realize is that they have the right to those delays and cancellations. This app helps travelers understand those often long and difficult to understand airline policies a lot easier! We also offer alternative flights.
+
 
 ## Live app
 
-- Streamlit: https://kdjpnz6b5q-collab-data-wra-delaybotsrcagentask-policy-ui-fpq4m6.streamlit.app/
+the link to the app is: https://kdjpnz6b5q-collab-data-wra-delaybotsrcagentask-policy-ui-fpq4m6.streamlit.app/
 
-## What it does
+**What is the app acutally doing: **
+First, it answers all your questions about delays and cancellation policies for 25+ airlines. 
+It recognises different types of delays, based on which it will give you guidance on your expected compensation from the airline
+As well it could draft you a refund/compensation email for the involved airline.
+The second part of the app offers you alternative flight options based on the alliance of the cancelled flight
 
-- Answers delay/cancellation policy questions with airline-aware guidance
-- Prompts for missing context (airline, disruption type, event type)
-- Generates expected compensation guidance (non-guaranteed)
-- Generates a draft refund/compensation email
-- Recommends alternative flights (alliance + regional fallback)
-- Supports optional live fare offers from Amadeus (with credentials)
+**Amadeus credentials **
+-  I don't want those public, will send them in an email to you:)
 
 ## Project structure
 
@@ -27,66 +27,8 @@ It helps travelers understand likely rights for delays/cancellations and suggest
 - `data/seeds/fallback_policies.json`: built-in fallback policy data
 - `requirements.txt`: Streamlit Cloud runtime dependencies
 
-## Local setup
+## unstructured data part
+The airline policies are very complicated, and I saw many that run more than 100 pages. Personally, I don't really want to go over all those pages to find out my rights, but some compensation for my cancelled flight would be nice sometimes. That's why I scraped the policies of more than 25+ different airlines with Beautifullsoup. When the client in the app asks a question, the app will recognize which airline they fly with and match it to the right policy we have scraped. In the future i would like to include most airline companies to the app.
 
-```bash
-cd delaybot
-bash setup_local.sh
-```
 
-Run CLI policy Q&A:
 
-```bash
-make ask Q="My Delta flight is delayed 4 hours because of weather. What can I expect?"
-```
-
-Run CLI alternatives:
-
-```bash
-make recommend FLIGHT="AA123" ORIGIN="JFK" DEST="LHR" DEPART="2026-03-10T14:30"
-```
-
-Run Streamlit UI:
-
-```bash
-make ui
-```
-
-## Streamlit Cloud deploy
-
-Use these settings in Streamlit Community Cloud:
-
-- Repository: `kdjpnz6b5q-collab/Data-Wrangling-project`
-- Branch: `main`
-- App file: `delaybot/src/agent/ask_policy_ui.py`
-
-### Optional secrets (for live Amadeus fares)
-
-Add in Streamlit app secrets:
-
-```toml
-AMADEUS_CLIENT_ID = "your_client_id"
-AMADEUS_CLIENT_SECRET = "your_client_secret"
-AMADEUS_BASE_URL = "https://test.api.amadeus.com"
-```
-
-If secrets are missing, DelayBot automatically falls back to alliance-based recommendations.
-
-## Data behavior
-
-DelayBot checks data in this order:
-
-1. `data/processed/policy_chunks_tagged.csv`
-2. `data/processed/policy_chunks.csv`
-3. `data/seeds/fallback_policies.json` (automatic fallback for cloud deploys)
-
-To rebuild full processed data locally:
-
-```bash
-make all
-```
-
-## Notes
-
-- Policy/compensation output is guidance, not legal advice.
-- Always confirm final eligibility directly with the operating airline.
