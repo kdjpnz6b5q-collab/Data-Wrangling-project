@@ -51,7 +51,9 @@ def main() -> int:
         code = rec.get("airline_code", "")
         code_text = f" ({code})" if code else ""
         print(f"{i}. {rec['airline_label']}{code_text}")
-        print(f"   Why: {rec['reason']}")
+        reason = str(rec.get("reason") or "").strip()
+        if reason:
+            print(f"   Why: {reason}")
         if rec.get("live_offer"):
             if rec.get("price"):
                 print(f"   Price: {rec['price']}")

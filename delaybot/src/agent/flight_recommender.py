@@ -319,7 +319,7 @@ def build_reason(source_airline: str, candidate: str) -> str:
     if source_alliance and candidate in ALLIANCE_MEMBERS.get(source_alliance, []):
         return f"Alliance partner ({ALLIANCE_LABELS[source_alliance]})."
 
-    return "Fallback major carrier option for the route/date search."
+    return ""
 
 
 def _airline_bucket(source_airline: str, candidate: str | None) -> int:

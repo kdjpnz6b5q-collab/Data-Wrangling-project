@@ -487,7 +487,9 @@ def render_alt_result(alt_result: dict) -> None:
             code = rec.get("airline_code") or ""
             if code:
                 st.write(f"Carrier code: {code}")
-            st.write(f"Why: {rec['reason']}")
+            reason = str(rec.get("reason") or "").strip()
+            if reason:
+                st.write(f"Why: {reason}")
             if rec.get("live_offer"):
                 cols = st.columns(3)
                 with cols[0]:
