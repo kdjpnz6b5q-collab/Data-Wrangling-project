@@ -470,110 +470,141 @@ def _amadeus_fetch_live_offers(
     except Exception as exc:
         return [], "alliance_fallback", f"Amadeus auth failed: {exc}. Using alliance fallback."
 
-    airline_codes = [AIRLINE_TO_IATA[a] for a in candidate_airlines if AIRLINE_TO_IATA.get(a)]
-    params = {
-        "originLocationCode": origin_code,
-        "destinationLocationCode": destination_code,
-        "departureDate": departure_date,
-        "adults": "1",
-        "max": str(max(5, min(20, max_results * 3))),
-        "nonStop": "false",
-        "currencyCode": "USD",
-    }
-    if airline_codes:
-        params["includedAirlineCodes"] = ",".join(sorted(set(airline_codes)))
-
-    try:
-        resp = requests.get(
-            f"{base_url}/v2/shopping/flight-offers",
-            headers={"Authorization": f"Bearer {token}"},
-            params=params,
-            timeout=20,
-        )
-        if resp.status_code >= 400:
-            detail = ""
-            try:
-                payload = resp.json()
-                detail = payload.get("errors", [{}])[0].get("detail", "")
-            except Exception:
-                detail = (resp.text or "").strip()[:220]
-            raise RuntimeError(f"amadeus_search_http_{resp.status_code}: {detail}")
-        payload = resp.json()
-    except Exception as exc:
-        return [], "alliance_fallback", f"Amadeus shopping call failed: {exc}. Using alliance fallback."
-
-    offers = payload.get("data") or []
-    if not offers:
-        return [], "alliance_fallback", "No live offers returned by Amadeus; using alliance fallback."
-
-    out: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str, str]] = set()
+    source_airline = candidate_airlines[0] if candidate_airlines else ""
+    source_alliance = ALLIANCE_OF.get(source_airline)
+    alliance_members = set(ALLIANCE_MEMBERS.get(source_alliance or "", []))
+    preferred_airlines = [
+        a for a in candidate_airlines if a == source_airline or (source_alliance and a in alliance_members)
+    ]
+    fallback_airlines = [a for a in candidate_airlines if a not in preferred_airlines]
 
     fetch_cap = max(5, min(20, max_results * 3))
-    for offer in offers:
-        validating = offer.get("validatingAirlineCodes") or []
-        primary_code = (validating[0] if validating else "").upper()
-        airline_key = IATA_TO_AIRLINE.get(primary_code)
-        airline_label = AIRLINE_LABELS.get(airline_key or "", primary_code or "Unknown carrier")
 
-        itineraries = offer.get("itineraries") or []
-        if not itineraries:
-            continue
-        first_it = itineraries[0]
-        segments = first_it.get("segments") or []
-        if not segments:
-            continue
+    def fetch_subset(airline_subset: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+        airline_codes = [AIRLINE_TO_IATA[a] for a in airline_subset if AIRLINE_TO_IATA.get(a)]
+        params = {
+            "originLocationCode": origin_code,
+            "destinationLocationCode": destination_code,
+            "departureDate": departure_date,
+            "adults": "1",
+            "max": str(fetch_cap),
+            "nonStop": "false",
+            "currencyCode": "USD",
+        }
+        if airline_codes:
+            params["includedAirlineCodes"] = ",".join(sorted(set(airline_codes)))
 
-        dep_at = segments[0].get("departure", {}).get("at", "")
-        arr_at = segments[-1].get("arrival", {}).get("at", "")
-        stops = max(0, len(segments) - 1)
-        duration = first_it.get("duration", "")
+        try:
+            resp = requests.get(
+                f"{base_url}/v2/shopping/flight-offers",
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+                timeout=20,
+            )
+            if resp.status_code >= 400:
+                detail = ""
+                try:
+                    payload = resp.json()
+                    detail = payload.get("errors", [{}])[0].get("detail", "")
+                except Exception:
+                    detail = (resp.text or "").strip()[:220]
+                return [], f"amadeus_search_http_{resp.status_code}: {detail}"
+            payload = resp.json()
+        except Exception as exc:
+            return [], str(exc)
 
-        price = offer.get("price", {})
-        total = price.get("grandTotal", "")
-        currency = price.get("currency", "")
-        price_text = f"{total} {currency}".strip()
+        offers = payload.get("data") or []
+        out: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str, str]] = set()
+        for offer in offers:
+            validating = offer.get("validatingAirlineCodes") or []
+            primary_code = (validating[0] if validating else "").upper()
+            airline_key = IATA_TO_AIRLINE.get(primary_code)
+            airline_label = AIRLINE_LABELS.get(airline_key or "", primary_code or "Unknown carrier")
 
-        key = (primary_code, dep_at, arr_at, price_text)
-        if key in seen:
-            continue
-        seen.add(key)
+            itineraries = offer.get("itineraries") or []
+            if not itineraries:
+                continue
+            first_it = itineraries[0]
+            segments = first_it.get("segments") or []
+            if not segments:
+                continue
 
-        label_for_query = airline_label if airline_label != "Unknown carrier" else primary_code
+            dep_at = segments[0].get("departure", {}).get("at", "")
+            arr_at = segments[-1].get("arrival", {}).get("at", "")
+            stops = max(0, len(segments) - 1)
+            duration = first_it.get("duration", "")
 
-        out.append(
-            {
-                "airline": airline_key or primary_code.lower() or "unknown",
-                "airline_label": airline_label,
-                "airline_code": primary_code,
-                "reason": (
-                    build_reason(source_airline=candidate_airlines[0], candidate=airline_key)
-                    if airline_key
-                    else "Live offer from Amadeus for your route/date."
-                ),
-                "contact_url": AIRLINE_CONTACT_URLS.get(airline_key or "", ""),
-                "google_flights_url": build_google_flights_url(
-                    origin_code,
-                    destination_code,
-                    departure_date,
-                    label_for_query,
-                ),
-                "live_offer": True,
-                "price": price_text,
-                "departure_at": dep_at,
-                "arrival_at": arr_at,
-                "stops": stops,
-                "duration": duration,
-            }
+            price = offer.get("price", {})
+            total = price.get("grandTotal", "")
+            currency = price.get("currency", "")
+            price_text = f"{total} {currency}".strip()
+
+            key = (primary_code, dep_at, arr_at, price_text)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            label_for_query = airline_label if airline_label != "Unknown carrier" else primary_code
+
+            out.append(
+                {
+                    "airline": airline_key or primary_code.lower() or "unknown",
+                    "airline_label": airline_label,
+                    "airline_code": primary_code,
+                    "reason": (
+                        build_reason(source_airline=source_airline, candidate=airline_key)
+                        if airline_key
+                        else "Live offer from Amadeus for your route/date."
+                    ),
+                    "contact_url": AIRLINE_CONTACT_URLS.get(airline_key or "", ""),
+                    "google_flights_url": build_google_flights_url(
+                        origin_code,
+                        destination_code,
+                        departure_date,
+                        label_for_query,
+                    ),
+                    "live_offer": True,
+                    "price": price_text,
+                    "departure_at": dep_at,
+                    "arrival_at": arr_at,
+                    "stops": stops,
+                    "duration": duration,
+                }
+            )
+
+            if len(out) >= fetch_cap:
+                break
+
+        return out, None
+
+    first_pass_keys = preferred_airlines or candidate_airlines
+    primary_out, primary_err = fetch_subset(first_pass_keys)
+    if primary_err:
+        return [], "alliance_fallback", f"Amadeus shopping call failed: {primary_err}. Using alliance fallback."
+
+    secondary_out: list[dict[str, Any]] = []
+    if len(primary_out) < max_results and fallback_airlines:
+        secondary_out, _ = fetch_subset(fallback_airlines)
+
+    merged: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, str, str, str]] = set()
+    for rec in primary_out + secondary_out:
+        key = (
+            str(rec.get("airline_code") or ""),
+            str(rec.get("departure_at") or ""),
+            str(rec.get("arrival_at") or ""),
+            str(rec.get("price") or ""),
         )
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        merged.append(rec)
 
-        if len(out) >= fetch_cap:
-            break
+    if not merged:
+        return [], "alliance_fallback", "No live offers returned by Amadeus; using alliance fallback."
 
-    if not out:
-        return [], "alliance_fallback", "No parsable live offers returned; using alliance fallback."
-
-    return out, "amadeus_live", "Live offers fetched from Amadeus API."
+    return merged, "amadeus_live", "Live offers fetched from Amadeus API."
 
 
 def recommend_alternative_flights(
