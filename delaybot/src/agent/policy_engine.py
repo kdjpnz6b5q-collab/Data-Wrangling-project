@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import difflib
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TAGGED_CSV = PROJECT_ROOT / "data" / "processed" / "policy_chunks_tagged.csv"
 FALLBACK_CHUNKS = PROJECT_ROOT / "data" / "processed" / "policy_chunks.csv"
+FALLBACK_SEED_JSON = PROJECT_ROOT / "data" / "seeds" / "fallback_policies.json"
 
 AIRLINE_LABELS = {
     "american": "American Airlines",
@@ -622,16 +624,49 @@ def build_contact_guidance(airline: str | None) -> tuple[str, str]:
 
 def load_rows() -> list[dict[str, str]]:
     source = TAGGED_CSV if TAGGED_CSV.exists() else FALLBACK_CHUNKS
-    if not source.exists():
+    if source.exists():
+        with source.open("r", newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+
+        for row in rows:
+            if not row.get("airline"):
+                doc_id = row.get("doc_id", "")
+                row["airline"] = doc_id.split("_")[0] if doc_id else "unknown"
+
+        return rows
+
+    if not FALLBACK_SEED_JSON.exists():
         return []
 
-    with source.open("r", newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+    try:
+        payload = json.loads(FALLBACK_SEED_JSON.read_text(encoding="utf-8"))
+    except Exception:
+        return []
 
-    for row in rows:
-        if not row.get("airline"):
-            doc_id = row.get("doc_id", "")
-            row["airline"] = doc_id.split("_")[0] if doc_id else "unknown"
+    if not isinstance(payload, list):
+        return []
+
+    rows: list[dict[str, str]] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "").strip()
+        if not text:
+            continue
+        doc_id = str(item.get("doc_id") or "").strip()
+        airline = str(item.get("airline") or "").strip().lower()
+        if not airline and doc_id:
+            airline = doc_id.split("_")[0]
+        rows.append(
+            {
+                "doc_id": doc_id,
+                "airline": airline or "unknown",
+                "title": str(item.get("title") or ""),
+                "url": str(item.get("url") or ""),
+                "chunk_text": text,
+                "tags": "",
+            }
+        )
 
     return rows
 
